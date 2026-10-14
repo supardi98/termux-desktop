@@ -182,6 +182,16 @@ Options:
 - `-f`: Force stop.
 - `--help`: Show help.
 
+### Web Browser Access (noVNC)
+
+Access your active Termux:X11 desktop directly from any web browser on your PC, Laptop, or Tablet on the same Wi-Fi network without installing any client:
+
+```bash
+novnc-start    # Start noVNC (Open http://<phone-ip>:6080)
+novnc-stop     # Stop noVNC server
+```
+*(Aliases: `novncstart` and `novncstop`)*
+
 ### GUI Commands
 
 ```bash

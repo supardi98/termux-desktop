@@ -548,3 +548,6 @@ cp2clip() {
 
 	echo "Content of '$1' copied to clipboard"
 }
+
+alias novncstart='novnc-start'
+alias novncstop='novnc-stop'

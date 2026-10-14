@@ -4224,7 +4224,11 @@ function setup_tx11stop_cmd() {
 			killall virgl_test_server > /dev/null 2>&1
 			pkill -9 openbox* > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
 			pkill -f com.termux.x11 > /dev/null 2>&1
+			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
+			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
+			rm -rf "\$TMPDIR/pulse/"* "$TERMUX_PREFIX/tmp/pulse-"* > /dev/null 2>&1 || true
 			sleep 1
 				if [[ ! -n "\$termux_x11_pid" ]] || [[ ! -n "\$de_pid" ]]; then
 				print_msg "${G}Termux:X11 Stopped Successfully ${NC}"
@@ -4236,6 +4240,10 @@ function setup_tx11stop_cmd() {
 			killall virgl_test_server > /dev/null 2>&1
 			pkill -9 pulseaudio > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
+			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
+			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
+			rm -rf "\$TMPDIR/pulse/"* "$TERMUX_PREFIX/tmp/pulse-"* > /dev/null 2>&1 || true
 			print_msg "${G}Termux:X11 Successfully Force Stopped ${NC}"
 			[[ -f "$TERMUX_HOME/.xstartup" ]] && rm -rf "$TERMUX_HOME/.xstartup"
 			elif [[ "\$1" == "-h" ]]; then
@@ -4278,19 +4286,27 @@ function setup_tx11stop_cmd() {
 			kill -9 "\$termux_x11_pid" > /dev/null 2>&1
 			pkill -9 pulseaudio > /dev/null 2>&1
 			killall virgl_test_server > /dev/null 2>&1
-			pkill -9 $de_name-* > /dev/null 2>&1
+			pkill -9 \$de_name-* > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
 			pkill -f com.termux.x11 > /dev/null 2>&1
+			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
+			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
+			rm -rf "\$TMPDIR/pulse/"* "$TERMUX_PREFIX/tmp/pulse-"* > /dev/null 2>&1 || true
 				if [[ ! -n "\$termux_x11_pid" ]] || [[ ! -n "\$de_pid" ]]; then
 				print_msg "${G}Termux:X11 Stopped Successfully ${NC}"
 			    [[ -f "$TERMUX_HOME/.xstartup" ]] && rm -rf "$TERMUX_HOME/.xstartup"
 				fi
 			elif [[ "\$1" == "-f" ]] || [[ "\$1" == "--force" ]]; then
 			pkill -f com.termux.x11 > /dev/null 2>&1
-			pkill -9 $de_name-* > /dev/null 2>&1
+			pkill -9 \$de_name-* > /dev/null 2>&1
 			killall virgl_test_server > /dev/null 2>&1
 			pkill -9 pulseaudio > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
+			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
+			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
+			rm -rf "\$TMPDIR/pulse/"* "$TERMUX_PREFIX/tmp/pulse-"* > /dev/null 2>&1 || true
 			print_msg "${G}Termux:X11 Successfully Force Stopped ${NC}"
 			[[ -f "$TERMUX_HOME/.xstartup" ]] && rm -rf "$TERMUX_HOME/.xstartup"
 			elif [[ "\$1" == "-h" ]]; then
@@ -5093,6 +5109,9 @@ function setup_fonts() {
 	print_msg "${BOLD}Installing ${sel_base_name} Nerd Font..."
 
 	package_install_and_check "nerdfix fontconfig-utils"
+	if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
+		package_install_and_check "fonts-noto-color-emoji"
+	fi
 	check_and_create_directory "$TERMUX_HOME/.termux"
 	check_and_create_directory "$TERMUX_HOME/.fonts"
 	check_and_backup "$TERMUX_HOME/.termux/font.ttf"

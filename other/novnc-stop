@@ -1,0 +1,8 @@
+#!/bin/bash
+# ==============================================================================
+# Script: novnc-stop
+# Description: Stops x11vnc and noVNC (websockify)
+# ==============================================================================
+
+pkill -9 -f "x11vnc|websockify.*6080" >/dev/null 2>&1 || true
+echo "[✓] noVNC dan x11vnc telah berhasil dihentikan."
