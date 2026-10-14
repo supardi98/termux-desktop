@@ -23,7 +23,7 @@ x11vnc -display "$DISPLAY" -forever -shared -nopw -listen 127.0.0.1 -rfbport 590
 
 # Start websockify / noVNC web server on port 6080
 echo "[i] Menjalankan noVNC Web Server pada port 6080..."
-websockify --web /usr/share/novnc 6080 127.0.0.1:5900 >/dev/null 2>&1 &
+websockify -D --web /usr/share/novnc 6080 127.0.0.1:5900 >/dev/null 2>&1
 
 # Get local IP address
 LOCAL_IP=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n 1)
