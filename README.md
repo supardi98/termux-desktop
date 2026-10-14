@@ -91,7 +91,7 @@
 #### One Liner:
 
 ```bash
-bash <(curl -Lf https://raw.githubusercontent.com/sabamdarif/termux-desktop/main/setup-termux-desktop)
+bash <(curl -Lf https://raw.githubusercontent.com/supardi98/termux-desktop/main/setup-termux-desktop)
 ```
 
 #### Or:

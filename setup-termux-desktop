@@ -50,7 +50,7 @@ trap cleanup_on_exit EXIT
 #########################################################################
 
 # Main variables
-readonly REPO_OWNER="sabamdarif"
+readonly REPO_OWNER="supardi98"
 readonly REPO_NAME="termux-desktop"
 readonly REPO_BRANCH_MAIN="main"
 readonly REPO_SETUP_FILE_BRANCH="setup-files"
