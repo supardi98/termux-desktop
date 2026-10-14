@@ -184,8 +184,8 @@ setup-termux-desktop --change hw
 | Driver     | Command                                                       |
 | ---------- | ------------------------------------------------------------- |
 | LLVMPIPE   | `glmark2`                                                     |
-| VIRGL      | `GALLIUM_DRIVER=virpipe MESA_GL_VERSION_OVERRIDE=4.0 glmark2` |
-| VIRGL ZINK | `GALLIUM_DRIVER=virpipe MESA_GL_VERSION_OVERRIDE=4.0 glmark2` |
+| VIRGL      | `gpu glmark2` *(or `GALLIUM_DRIVER=virpipe MESA_GL_VERSION_OVERRIDE=4.1COMPAT MESA_GLSL_VERSION_OVERRIDE=410 glmark2`)* |
+| VIRGL ZINK | `gpu glmark2` |
 | TURNIP     | `MESA_LOADER_DRIVER_OVERRIDE=zink TU_DEBUG=noconform glmark2` |
 | ZINK       | `GALLIUM_DRIVER=zink MESA_GL_VERSION_OVERRIDE=4.0 glmark2`    |
 

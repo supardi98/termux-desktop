@@ -254,8 +254,8 @@ function setup_hw_environment_variables() {
 		pd_hw_method="${set_to_export}"
 		;;
 	"virgl_angle")
-		set_to_export="GALLIUM_DRIVER=virpipe MESA_GLES_VERSION_OVERRIDE=3.2 LIBGL_DRI3_DISABLE=1"
-		initialize_server_method="virgl_test_server_android --angle-gl"
+		set_to_export="GALLIUM_DRIVER=virpipe MESA_GLES_VERSION_OVERRIDE=3.2 MESA_GL_VERSION_OVERRIDE=4.1COMPAT MESA_GLSL_VERSION_OVERRIDE=410 LIBGL_DRI3_DISABLE=1"
+		initialize_server_method="virgl_test_server_android --angle-gl --multi-clients"
 		pd_hw_method="${set_to_export}"
 		;;
 	"virgl_vulkan")
@@ -302,7 +302,7 @@ function setup_hw_environment_variables() {
 
 	case "$pd_hw_answer" in
 	"virgl")
-		pd_hw_method="GALLIUM_DRIVER=virpipe"
+		pd_hw_method="GALLIUM_DRIVER=virpipe MESA_GL_VERSION_OVERRIDE=4.1COMPAT MESA_GLSL_VERSION_OVERRIDE=410"
 		;;
 	"turnip")
 		pd_hw_method="VK_ICD_FILENAMES=${MESA_FREEDRENO_PREFIX}/share/vulkan/icd.d/freedreno_icd.${termux_arch}.json LD_LIBRARY_PATH=${MESA_FREEDRENO_PREFIX}/lib LIBGL_DRIVERS_PATH=${MESA_FREEDRENO_PREFIX}/lib/dri MESA_LOADER_DRIVER_OVERRIDE=zink TU_DEBUG=noconform"

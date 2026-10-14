@@ -551,3 +551,4 @@ cp2clip() {
 
 alias novncstart='novnc-start'
 alias novncstop='novnc-stop'
+alias gpu='gpu'

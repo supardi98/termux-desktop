@@ -1,0 +1,13 @@
+#!/bin/bash
+# ==============================================================================
+# Script: gpu
+# Description: Wrapper to run any Linux application with Mali GPU Hardware Acceleration (VirGL)
+# Usage: gpu <command> [args...]
+# ==============================================================================
+
+export GALLIUM_DRIVER=virpipe
+export MESA_GL_VERSION_OVERRIDE=4.1COMPAT
+export MESA_GLSL_VERSION_OVERRIDE=410
+export LIBGL_ALWAYS_SOFTWARE=0
+
+exec "$@"
