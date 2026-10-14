@@ -4,5 +4,12 @@
 # Description: Stops x11vnc and noVNC (websockify)
 # ==============================================================================
 
+# If executed from Termux host (outside PRoot), forward into Debian container
+if [ ! -f /etc/debian_version ]; then
+    if command -v pdrun >/dev/null 2>&1; then
+        exec pdrun novnc-stop "$@"
+    fi
+fi
+
 pkill -9 -f "x11vnc|websockify.*6080" >/dev/null 2>&1 || true
 echo "[✓] noVNC dan x11vnc telah berhasil dihentikan."

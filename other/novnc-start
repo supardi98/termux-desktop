@@ -5,6 +5,13 @@
 # Accessible via any web browser at: http://<IP-HP>:6080
 # ==============================================================================
 
+# If executed from Termux host (outside PRoot), forward into Debian container
+if [ ! -f /etc/debian_version ]; then
+    if command -v pdrun >/dev/null 2>&1; then
+        exec pdrun novnc-start "$@"
+    fi
+fi
+
 export DISPLAY="${DISPLAY:-:0}"
 
 # Stop any existing instances first
