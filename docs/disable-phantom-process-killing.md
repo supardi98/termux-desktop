@@ -1,5 +1,18 @@
 ## Commands to disable phantom process killing
 
+### ⚡ Quick Automatic Fix (Root / One-Liner)
+
+If your device has root access (KernelSU, Magisk, or APatch), simply run this one-liner inside Termux:
+```bash
+su -c "curl -sL https://raw.githubusercontent.com/supardi98/termux-desktop/refs/heads/main/other/fix-phantom-process.sh | sh"
+```
+Or execute the included script directly:
+```bash
+sh other/fix-phantom-process.sh
+```
+
+---
+
 ### Commands for Android 14 and higher
 
 **Enable toggle once** at `Android Settings` -> `System` -> `Developer options` -> `Disable child process restrictions` to disable killing of **extra phantom processes `> 32`** and **processes using excessive cpu**. You will need to enable `Developer options` first on your device for it to show in `System` settings page, and it can usually be done by tapping `Android Settings` -> `About` -> `Build number` field `7` times.
