@@ -268,6 +268,31 @@ novnc-powersave wake          # Force ACTIVE mode immediately
 - **Process Throttling:** Background browsers/apps are lowered in priority (`renice +19`).
 - **Instant Wakeup:** The millisecond a client connects to `http(s)://<ip>:6080`, the entire desktop pipeline wakes up to 100% full performance in less than 0.5s!
 
+#### 8. Remote SSH Access (`termux-ssh`)
+Access your Termux terminal and Debian desktop securely from any laptop, PC, or VPS over Wi-Fi and Tailscale (Port `8022`):
+
+```bash
+termux-ssh start              # Start SSH server (displays Tailscale & local Wi-Fi connection strings)
+termux-ssh stop               # Stop SSH server
+termux-ssh restart            # Restart SSH server
+termux-ssh status             # Check SSH server status and connection info
+termux-ssh passwd             # Set/change SSH login password (~/.termux_authinfo)
+```
+*(Aliases: `startssh` and `stopssh`)*
+
+**Connecting from Laptop / PC / VPS:**
+```bash
+# Via Tailscale (Remote anywhere):
+ssh -p 8022 <username>@<tailscale-ip>
+
+# Or with SSH Key (Recommended, passwordless):
+ssh-copy-id -p 8022 <username>@<tailscale-ip>
+```
+*Features:*
+- Dynamic username detection across any Android device.
+- Automatic pseudo-terminal (PTY) fix (`libssh_pts_fix.so`) solving Android non-root `chown /dev/pts` permission denials.
+- Optimized OpenSSH configuration disabling aggressive source penalties (`PerSourcePenalties no`).
+
 ### GUI Commands
 
 ```bash
