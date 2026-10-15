@@ -293,6 +293,22 @@ ssh-copy-id -p 8022 <username>@<tailscale-ip>
 - Automatic pseudo-terminal (PTY) fix (`libssh_pts_fix.so`) solving Android non-root `chown /dev/pts` permission denials.
 - Optimized OpenSSH configuration disabling aggressive source penalties (`PerSourcePenalties no`).
 
+#### 9. Instant Backup & Restore (`td-backup` / `td-restore`)
+Protect your entire Debian environment, desktop settings, and Termux tools with one-line backup and instant recovery:
+
+```bash
+td-backup                 # Full backup: Debian OS + Desktop + Configs (~1.4 GB compressed)
+td-backup --config        # Lightweight backup: configs & dotfiles only (~25 MB, takes 2 seconds)
+td-backup --list          # View all available backups in /sdcard/Download/TermuxDesktopBackups/
+td-restore                # Interactive restore menu (choose backup number to restore)
+td-restore <backup_file>  # Restore a specific backup archive with integrity check
+```
+
+*Highlights:*
+- **Multi-threaded Zstandard (`zstd -T0`):** Blazingly fast compression with high compression ratio.
+- **Auto Checksum Verification:** Generates and verifies SHA256 checksums to ensure zero archive corruption.
+- **Accessible Storage:** Stored directly in `/sdcard/Download/TermuxDesktopBackups/`, making backups instantly visible in Android's Files app and ready to transfer to PC/microSD/cloud.
+
 ### GUI Commands
 
 ```bash

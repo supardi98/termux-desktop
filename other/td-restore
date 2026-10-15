@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Script: td-restore
+# Description: Smart Restore Tool for Termux Desktop (Full Rootfs or Config)
+# Usage: td-restore [path_to_backup_file]
+# Repository: https://github.com/supardi98/termux-desktop
+# ==============================================================================
+
+set -eo pipefail
+
+readonly BACKUP_DEFAULT_DIR="/sdcard/Download/TermuxDesktopBackups"
+readonly FALLBACK_DIR="${HOME}/TermuxDesktopBackups"
+
+# Styling
+BOLD="\033[1m"
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
+BLUE="\033[0;34m"
+CYAN="\033[0;36m"
+RED="\033[0;31m"
+RESET="\033[0m"
+
+log_info()    { echo -e "${BLUE}[i]${RESET} $1"; }
+log_success() { echo -e "${GREEN}[✓]${RESET} $1"; }
+log_warn()    { echo -e "${YELLOW}[!]${RESET} $1"; }
+log_error()   { echo -e "${RED}[☓]${RESET} $1"; }
+
+get_backup_dir() {
+    if [ -d "$BACKUP_DEFAULT_DIR" ]; then
+        echo "$BACKUP_DEFAULT_DIR"
+    elif [ -d "$FALLBACK_DIR" ]; then
+        echo "$FALLBACK_DIR"
+    else
+        echo "$BACKUP_DEFAULT_DIR"
+    fi
+}
+
+show_help() {
+    echo ""
+    echo -e "${BOLD}td-restore - Alat Pemulihan Cadangan Termux Desktop${RESET}"
+    echo ""
+    echo "Penggunaan: td-restore [FILE_CADANGAN]"
+    echo ""
+    echo "Jika dipanggil tanpa argumen, skrip akan menampilkan menu interaktif"
+    echo "dari seluruh file cadangan yang tersedia di folder Download."
+    echo ""
+    echo "Contoh:"
+    echo "  td-restore                                       # Tampilkan menu pilihan cadangan"
+    echo "  td-restore /sdcard/Download/termux_backup.tar.zst # Pulihkan file tertentu"
+    echo ""
+}
+
+select_backup_interactively() {
+    local bdir
+    bdir=$(get_backup_dir)
+    local files=()
+
+    for f in "$bdir"/*.tar.zst "$bdir"/*.tar.gz; do
+        if [ -f "$f" ]; then
+            files+=("$f")
+        fi
+    done
+
+    if [ ${#files[@]} -eq 0 ]; then
+        log_error "Tidak ditemukan file cadangan di: ${bdir}"
+        echo -e "Jalankan ${CYAN}td-backup${RESET} untuk membuat cadangan terlebih dahulu."
+        exit 1
+    fi
+
+    echo ""
+    echo -e "${BOLD}Pilih file cadangan yang ingin dipulihkan:${RESET}"
+    echo "------------------------------------------------------------"
+    local idx=1
+    for f in "${files[@]}"; do
+        local sz
+        sz=$(du -h "$f" | awk '{print $1}')
+        local base
+        base=$(basename "$f")
+        echo -e "  [${CYAN}${idx}${RESET}] ${BOLD}${base}${RESET} (${YELLOW}${sz}${RESET})"
+        idx=$((idx + 1))
+    done
+    echo "------------------------------------------------------------"
+    echo -n "Pilih nomor [1-${#files[@]}] (atau 'q' untuk keluar): "
+    read -r choice
+
+    if [ "$choice" = "q" ] || [ "$choice" = "Q" ]; then
+        echo "Dibatalkan."
+        exit 0
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#files[@]}" ]; then
+        SELECTED_FILE="${files[$((choice - 1))]}"
+    else
+        log_error "Pilihan tidak valid."
+        exit 1
+    fi
+}
+
+post_restore_fixes() {
+    log_info "Melakukan verifikasi dan perbaikan izin sistem..."
+    
+    # Ensure executables in /usr/local/bin
+    if [ -d "/usr/local/bin" ]; then
+        chmod +x /usr/local/bin/* 2>/dev/null || true
+    fi
+
+    # Ensure Termux hooks and configurations
+    local pts_fix="/data/data/com.termux/files/usr/lib/libssh_pts_fix.so"
+    local sshd_session="/data/data/com.termux/files/usr/libexec/sshd-session"
+    if [ -f "$pts_fix" ] && [ -f "$sshd_session" ] && command -v patchelf >/dev/null 2>&1; then
+        if ! patchelf --print-needed "$sshd_session" 2>/dev/null | grep -q "libssh_pts_fix.so"; then
+            patchelf --add-needed libssh_pts_fix.so "$sshd_session" 2>/dev/null || true
+        fi
+    fi
+
+    # Fix VNC and SSH permissions
+    local user_home="/home/supardi"
+    [ ! -d "$user_home" ] && user_home="$HOME"
+    if [ -d "$user_home/.ssh" ]; then
+        chmod 700 "$user_home/.ssh" 2>/dev/null || true
+        chmod 600 "$user_home/.ssh/authorized_keys" 2>/dev/null || true
+    fi
+    if [ -d "$user_home/.vnc" ]; then
+        chmod 700 "$user_home/.vnc" 2>/dev/null || true
+    fi
+}
+
+do_restore() {
+    local archive="$1"
+
+    if [ ! -f "$archive" ]; then
+        log_error "File tidak ditemukan: $archive"
+        exit 1
+    fi
+
+    local fname
+    fname=$(basename "$archive")
+    local fsize
+    fsize=$(du -h "$archive" | awk '{print $1}')
+    local is_config_only=false
+    if [[ "$fname" == *"config"* ]]; then
+        is_config_only=true
+    fi
+
+    echo ""
+    echo -e "${BOLD}============================================================${RESET}"
+    echo -e " ${GREEN}📥 Konfirmasi Pemulihan Cadangan Termux Desktop${RESET}"
+    echo -e "${BOLD}============================================================${RESET}"
+    echo -e " File Cadangan : ${CYAN}${archive}${RESET}"
+    echo -e " Ukuran File   : ${YELLOW}${fsize}${RESET}"
+    if [ "$is_config_only" = true ]; then
+        echo -e " Mode Cadangan : ${BLUE}Konfigurasi & Dotfiles Saja${RESET}"
+    else
+        echo -e " Mode Cadangan : ${GREEN}Sistem Lengkap (Full OS Rootfs)${RESET}"
+    fi
+
+    # Verify checksum if present
+    local sha_file="${archive}.sha256"
+    if [ -f "$sha_file" ]; then
+        log_info "Memeriksa integritas checksum SHA256..."
+        if (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$sha_file")" >/dev/null 2>&1); then
+            log_success "Integritas file valid (SHA256 Match)."
+        else
+            log_warn "Checksum SHA256 tidak cocok! File mungkin rusak atau terpotong."
+            echo -n "Tetap lanjutkan ekstraksi? (y/N): "
+            read -r ignore_sha
+            if [[ ! "$ignore_sha" =~ ^[yY]$ ]]; then
+                echo "Dibatalkan."
+                exit 1
+            fi
+        fi
+    fi
+
+    echo ""
+    echo -e "${YELLOW}⚠️ PERINGATAN: File sistem/konfigurasi yang ada akan ditimpa${RESET}"
+    echo -e "${YELLOW}   sesuai isi dari file cadangan ini.${RESET}"
+    echo -n "Apakah Anda yakin ingin melanjutkan? (y/N): "
+    read -r confirm
+
+    if [[ ! "$confirm" =~ ^[yY]$ ]]; then
+        echo "Pemulihan dibatalkan."
+        exit 0
+    fi
+
+    echo ""
+    log_info "Memulai ekstraksi file..."
+    local start_time
+    start_time=$(date +%s)
+
+    local decompressor="cat"
+    if [[ "$archive" == *.zst ]]; then
+        if command -v zstd >/dev/null 2>&1; then
+            decompressor="zstd -d -c"
+        elif [ -x "/data/data/com.termux/files/usr/bin/zstd" ]; then
+            decompressor="/data/data/com.termux/files/usr/bin/zstd -d -c"
+        else
+            log_error "Dibutuhkan zstd untuk membuka arsip ini."
+            exit 1
+        fi
+    elif [[ "$archive" == *.gz ]]; then
+        decompressor="gzip -d -c"
+    fi
+
+    if command -v pv >/dev/null 2>&1; then
+        local raw_size
+        raw_size=$(stat -c "%s" "$archive" 2>/dev/null || stat -f "%z" "$archive" 2>/dev/null || echo "500000000")
+        pv -s "$raw_size" -N "Ekstraksi" "$archive" | $decompressor | tar -xpf - -C / 2>/dev/null || true
+    else
+        log_info "Sedang mengekstrak arsip, harap tunggu..."
+        $decompressor "$archive" | tar -xpf - -C / 2>/dev/null || true
+    fi
+
+    local end_time
+    end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    post_restore_fixes
+
+    echo ""
+    echo -e "${BOLD}============================================================${RESET}"
+    log_success "Pemulihan Cadangan Selesai dalam ${duration} detik!"
+    echo -e "${BOLD}============================================================${RESET}"
+    echo -e " Sistem Anda telah berhasil dikembalikan ke status saat cadangan dibuat."
+    echo -e " Disarankan untuk me-restart desktop atau sesi terminal agar seluruh"
+    echo -e " perubahan konfigurasi baru aktif sempurna."
+    echo -e "${BOLD}============================================================${RESET}"
+    echo ""
+}
+
+# Entrypoint
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_help
+    exit 0
+fi
+
+SELECTED_FILE="$1"
+if [ -z "$SELECTED_FILE" ]; then
+    select_backup_interactively
+fi
+
+do_restore "$SELECTED_FILE"

@@ -5016,6 +5016,9 @@ function terminal_utility_setup() {
 		download_file "$TERMUX_PREFIX/bin/novnc-audio" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio"
 		download_file "$TERMUX_PREFIX/bin/novnc-audio-server.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio-server.py" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio-server.py"
 		download_file "$TERMUX_PREFIX/bin/novnc-powersave" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-powersave" && chmod +x "$TERMUX_PREFIX/bin/novnc-powersave"
+		download_file "$TERMUX_PREFIX/bin/termux-ssh" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/termux-ssh" && chmod +x "$TERMUX_PREFIX/bin/termux-ssh"
+		download_file "$TERMUX_PREFIX/bin/td-backup" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/td-backup" && chmod +x "$TERMUX_PREFIX/bin/td-backup"
+		download_file "$TERMUX_PREFIX/bin/td-restore" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/td-restore" && chmod +x "$TERMUX_PREFIX/bin/td-restore"
 		download_file "$TERMUX_PREFIX/bin/patch-novnc-audio.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/patch-novnc-audio.py" && chmod +x "$TERMUX_PREFIX/bin/patch-novnc-audio.py"
 		download_file "$TERMUX_PREFIX/share/novnc-audio.svg" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio.svg"
 		python3 "$TERMUX_PREFIX/bin/patch-novnc-audio.py" >/dev/null 2>&1 || true
