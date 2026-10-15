@@ -11,8 +11,10 @@ SSH_PORT=8022
 
 get_user() {
     local u
-    u=$(whoami 2>/dev/null)
-    [ -z "$u" ] && [ -x "/data/data/com.termux/files/usr/bin/whoami" ] && u=$(/data/data/com.termux/files/usr/bin/whoami)
+    if [ -x "/data/data/com.termux/files/usr/bin/whoami" ]; then
+        u=$(/data/data/com.termux/files/usr/bin/whoami 2>/dev/null)
+    fi
+    [ -z "$u" ] && u=$(whoami 2>/dev/null)
     [ -z "$u" ] && u="u0_a331"
     echo "$u"
 }
