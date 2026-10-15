@@ -22,6 +22,8 @@ Penggunaan:
 Opsi 'start':
   --both        Suara keluar di speaker HP dan browser laptop secara bersamaan
   --mute-phone  Suara HANYA keluar di browser laptop (speaker HP hening, default)
+  --ssl         Aktifkan enkripsi HTTPS/TLS
+  --cert <path> Lokasi file sertifikat PEM SSL
 EOF
     exit 0
 }
@@ -45,10 +47,28 @@ fi
 
 start_audio() {
     local MUTE_PHONE=true
+    local USE_SSL=false
+    local CERT_FILE=""
+
+    # Detect default cert file
+    if [ -f "$HOME/.vnc/self.pem" ]; then
+        CERT_FILE="$HOME/.vnc/self.pem"
+    elif [ -f "/data/data/com.termux/files/home/.vnc/self.pem" ]; then
+        CERT_FILE="/data/data/com.termux/files/home/.vnc/self.pem"
+    elif [ -f "/home/supardi/.vnc/self.pem" ]; then
+        CERT_FILE="/home/supardi/.vnc/self.pem"
+    fi
+
     while [ $# -gt 0 ]; do
         case "$1" in
             --both) MUTE_PHONE=false ;;
             --mute-phone) MUTE_PHONE=true ;;
+            --ssl) USE_SSL=true ;;
+            --cert)
+                shift
+                CERT_FILE="$1"
+                USE_SSL=true
+                ;;
         esac
         shift
     done
@@ -88,7 +108,14 @@ start_audio() {
 
     # 5. Start audio web server with setsid
     echo "[i] Menyalakan server audio web pada port $AUDIO_PORT..."
-    setsid "$PYTHON_BIN" "$SERVER_SCRIPT" </dev/null >/dev/null 2>&1 &
+    SERVER_ARGS=("--port" "$AUDIO_PORT" "--pulse-port" "$PULSE_TCP_PORT")
+    PROTO="http"
+    if [ "$USE_SSL" = true ] && [ -n "$CERT_FILE" ] && [ -f "$CERT_FILE" ]; then
+        SERVER_ARGS+=("--ssl" "--cert" "$CERT_FILE")
+        PROTO="https"
+    fi
+
+    setsid "$PYTHON_BIN" "$SERVER_SCRIPT" "${SERVER_ARGS[@]}" </dev/null >/dev/null 2>&1 &
     sleep 1
 
     # Detect IP
@@ -105,13 +132,16 @@ start_audio() {
     echo "============================================================"
     echo " [✓] Audio Web Streaming Berhasil Aktif!"
     echo " $SINK_STATUS"
+    if [ "$PROTO" = "https" ]; then
+        echo " [🔒] Protokol Keamanan : HTTPS / TLS (Enkripsi Aktif)"
+    fi
     echo ""
     echo " Buka tab baru di browser Laptop / PC:"
-    echo "   👉 Wi-Fi Lokal : http://${LOCAL_IP}:${AUDIO_PORT}/"
+    echo "   👉 Wi-Fi Lokal : ${PROTO}://${LOCAL_IP}:${AUDIO_PORT}/"
     if [ -n "$TAILSCALE_IP" ]; then
-        echo "   👉 Tailscale   : http://${TAILSCALE_IP}:${AUDIO_PORT}/ (Jarak jauh)"
+        echo "   👉 Tailscale   : ${PROTO}://${TAILSCALE_IP}:${AUDIO_PORT}/ (Jarak jauh)"
     fi
-    echo "   👉 Lokal HP    : http://localhost:${AUDIO_PORT}/"
+    echo "   👉 Lokal HP    : ${PROTO}://localhost:${AUDIO_PORT}/"
     echo ""
     echo " Klik tombol '▶ Mulai Suara' di browser untuk mendengarkan."
     echo "============================================================"

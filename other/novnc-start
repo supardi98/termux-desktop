@@ -1,8 +1,8 @@
 #!/bin/bash
 # ==============================================================================
 # Script: novnc-start
-# Description: Starts native VNC server, noVNC, and optional audio streamer
-# Accessible via any web browser at: http://<IP-HP>:6080
+# Description: Starts native VNC server, noVNC (HTTP/HTTPS), and audio streamer
+# Accessible via any web browser at: http(s)://<IP-HP>:6080
 # ==============================================================================
 
 export DISPLAY="${DISPLAY:-:0}"
@@ -13,6 +13,7 @@ RFBPORT="${RFBPORT:-5900}"
 VNC_PASS=""
 NO_PW=false
 START_AUDIO=false
+USE_SSL=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -30,9 +31,13 @@ while [ $# -gt 0 ]; do
         --audio|-audio)
             START_AUDIO=true
             ;;
+        --ssl|-ssl)
+            USE_SSL=true
+            ;;
         --help|-h)
             echo "Penggunaan: novnc-start [opsi]"
             echo "  --audio                 Nyalakan juga server audio web (port 6081)"
+            echo "  --ssl                   Aktifkan enkripsi HTTPS/WSS (Self-Signed SSL)"
             echo "  --passwd <kata_sandi>   Gunakan kata sandi sementara untuk sesi ini"
             echo "  --nopw                  Akses tanpa kata sandi (abaikan ~/.vnc/passwd)"
             echo "  --port <port>           Ubah port noVNC web (default: 6080)"
@@ -71,6 +76,16 @@ sleep 0.5
 NOVNC_WEB="/usr/share/novnc"
 [ -d "/data/data/com.termux/files/usr/share/novnc" ] && NOVNC_WEB="/data/data/com.termux/files/usr/share/novnc"
 
+# Ensure Single-Tab Audio Player is integrated in noVNC web UI
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/patch-novnc-audio.py" ]; then
+    python3 "$SCRIPT_DIR/patch-novnc-audio.py" >/dev/null 2>&1 || true
+elif [ -f "/data/data/com.termux/files/usr/bin/patch-novnc-audio.py" ]; then
+    python3 "/data/data/com.termux/files/usr/bin/patch-novnc-audio.py" >/dev/null 2>&1 || true
+elif [ -f "/usr/local/bin/patch-novnc-audio.py" ]; then
+    python3 "/usr/local/bin/patch-novnc-audio.py" >/dev/null 2>&1 || true
+fi
+
 # Password detection
 PASS_FILE=""
 if [ -f "$HOME/.vnc/passwd" ]; then
@@ -108,18 +123,57 @@ fi
 
 sleep 1
 
+# SSL certificate detection and generation
+CERT_FILE=""
+if [ -f "$HOME/.vnc/self.pem" ]; then
+    CERT_FILE="$HOME/.vnc/self.pem"
+elif [ -f "/data/data/com.termux/files/home/.vnc/self.pem" ]; then
+    CERT_FILE="/data/data/com.termux/files/home/.vnc/self.pem"
+elif [ -f "/home/supardi/.vnc/self.pem" ]; then
+    CERT_FILE="/home/supardi/.vnc/self.pem"
+else
+    CERT_FILE="$HOME/.vnc/self.pem"
+fi
+
+if [ "$USE_SSL" = true ]; then
+    if [ ! -f "$CERT_FILE" ]; then
+        echo "[i] Membuat sertifikat SSL self-signed untuk HTTPS/WSS..."
+        mkdir -p "$(dirname "$CERT_FILE")"
+        openssl req -new -x509 -days 3650 -nodes \
+            -keyout "$CERT_FILE" -out "$CERT_FILE" \
+            -subj "/C=ID/ST=Termux/L=Local/O=TermuxDesktop/CN=termux-desktop" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null || \
+        openssl req -new -x509 -days 3650 -nodes \
+            -keyout "$CERT_FILE" -out "$CERT_FILE" \
+            -subj "/CN=termux-desktop" 2>/dev/null
+        chmod 600 "$CERT_FILE"
+    fi
+fi
+
 # Start websockify / noVNC web server using setsid
 echo "[i] Menjalankan noVNC Web Server pada port $PORT..."
 WEBSOCKIFY_CMD="websockify"
 command -v /data/data/com.termux/files/usr/bin/websockify >/dev/null 2>&1 && WEBSOCKIFY_CMD="/data/data/com.termux/files/usr/bin/websockify"
 
-setsid "$WEBSOCKIFY_CMD" --web "$NOVNC_WEB" "$PORT" "127.0.0.1:$RFBPORT" </dev/null >/dev/null 2>&1 &
+WS_ARGS=("--web" "$NOVNC_WEB")
+PROTO="http"
+if [ "$USE_SSL" = true ] && [ -f "$CERT_FILE" ]; then
+    WS_ARGS+=("--cert" "$CERT_FILE" "--ssl-only")
+    PROTO="https"
+fi
+WS_ARGS+=("$PORT" "127.0.0.1:$RFBPORT")
+
+setsid "$WEBSOCKIFY_CMD" "${WS_ARGS[@]}" </dev/null >/dev/null 2>&1 &
 sleep 1
 
 # Start audio streamer if requested
 if [ "$START_AUDIO" = true ]; then
     if command -v novnc-audio >/dev/null 2>&1; then
-        novnc-audio start >/dev/null 2>&1
+        AUDIO_OPTS=()
+        if [ "$USE_SSL" = true ] && [ -f "$CERT_FILE" ]; then
+            AUDIO_OPTS+=("--ssl" "--cert" "$CERT_FILE")
+        fi
+        novnc-audio start "${AUDIO_OPTS[@]}" >/dev/null 2>&1
     fi
 fi
 
@@ -137,18 +191,22 @@ echo ""
 echo "============================================================"
 echo " [✓] noVNC Berhasil Dinyalakan!"
 echo " $PW_STATUS"
+if [ "$PROTO" = "https" ]; then
+    echo " [🔒] Protokol Keamanan : HTTPS / WSS (Enkripsi SSL Aktif)"
+fi
 echo ""
 echo " Buka browser di Laptop / PC / Tablet:"
-echo "   👉 Layar Desktop : http://${LOCAL_IP}:${PORT}"
+echo "   👉 Layar Desktop : ${PROTO}://${LOCAL_IP}:${PORT}/"
 if pgrep -f "novnc-audio-server.py" >/dev/null 2>&1; then
-    echo "   👉 Suara Desktop : http://${LOCAL_IP}:6081/ [AKTIF (Speaker HP Senyap)]"
+    echo "   👉 Suara Desktop : ${PROTO}://${LOCAL_IP}:6081/ [AKTIF (Speaker HP Senyap)]"
+    echo "   🔊 Single-Tab    : Suara dapat diputar LANGSUNG di bilah menu noVNC!"
 else
-    echo "   👉 Suara Desktop : http://${LOCAL_IP}:6081/ (Ketik 'novnc-audio' untuk aktifkan)"
+    echo "   👉 Suara Desktop : ${PROTO}://${LOCAL_IP}:6081/ (Ketik 'novnc-audio' untuk aktifkan)"
 fi
 if [ -n "$TAILSCALE_IP" ]; then
-    echo "   👉 Tailscale     : http://${TAILSCALE_IP}:${PORT} (Jarak jauh)"
+    echo "   👉 Tailscale     : ${PROTO}://${TAILSCALE_IP}:${PORT}/ (Jarak jauh)"
 fi
-echo "   👉 Lokal HP      : http://localhost:${PORT}"
+echo "   👉 Lokal HP      : ${PROTO}://localhost:${PORT}/"
 echo ""
 echo " Perintah terkait:"
 echo "   - novnc-audio  : Kontrol streaming suara ke browser"

@@ -3806,6 +3806,8 @@ function setup_tx11start_cmd() {
 			    use_debug=false
 			    use_novnc=false
 			    use_headless=false
+			    use_audio=false
+			    use_ssl=false
 			    de_startup="$de_startup"
 
 			    # Function to show help
@@ -3817,6 +3819,8 @@ function setup_tx11start_cmd() {
 					tx11start --legacy                      - start with -legacy-drawing
 					tx11start --debug                       - show debug log
 					tx11start --novnc                       - start Termux:X11 and launch noVNC web server
+					tx11start --novnc --audio               - start Termux:X11, noVNC, and web audio streamer
+					tx11start --novnc --ssl                 - start Termux:X11 and noVNC with HTTPS/WSS encryption
 					tx11start --headless                    - start in headless mode (no Termux:X11 app window)
 					tx11start --xstartup "xstartup-name"    - launch another desktop environment
 					HELP_EOF
@@ -3845,6 +3849,13 @@ function setup_tx11start_cmd() {
 			        ;;
 			      --headless)
 			        use_headless=true
+			        ;;
+			      --audio)
+			        use_audio=true
+			        use_novnc=true
+			        ;;
+			      --ssl)
+			        use_ssl=true
 			        ;;
 			      --legacy)
 			        use_legacy=true
@@ -4027,6 +4038,8 @@ function setup_tx11start_cmd() {
 			    use_debug=false
 			    use_novnc=false
 			    use_headless=false
+			    use_audio=false
+			    use_ssl=false
 			    de_startup="$de_startup"
 
 			    # Function to show help
@@ -4037,6 +4050,8 @@ function setup_tx11start_cmd() {
 					tx11start --legacy                      - start with -legacy-drawing
 					tx11start --debug                       - show debug log
 					tx11start --novnc                       - start Termux:X11 and launch noVNC web server
+					tx11start --novnc --audio               - start Termux:X11, noVNC, and web audio streamer
+					tx11start --novnc --ssl                 - start Termux:X11 and noVNC with HTTPS/WSS encryption
 					tx11start --headless                    - start in headless mode (no Termux:X11 app window)
 					tx11start --xstartup "xstartup-name"    - launch another desktop environment
 					HELP_EOF
@@ -4062,6 +4077,13 @@ function setup_tx11start_cmd() {
 			        ;;
 			      --headless)
 			        use_headless=true
+			        ;;
+			      --audio)
+			        use_audio=true
+			        use_novnc=true
+			        ;;
+			      --ssl)
+			        use_ssl=true
 			        ;;
 			      --legacy)
 			        use_legacy=true
@@ -4212,11 +4234,14 @@ function setup_tx11start_cmd() {
 	cat <<-EOF >>"$TERMUX_PREFIX/bin/tx11start"
 		if \$use_novnc; then
 			if command -v novnc-start >/dev/null 2>&1; then
-				if \$use_headless; then
-					novnc-start --audio
-				else
-					novnc-start
+				novnc_opts=()
+				if \$use_headless || \$use_audio; then
+					novnc_opts+=("--audio")
 				fi
+				if \$use_ssl; then
+					novnc_opts+=("--ssl")
+				fi
+				novnc-start "\${novnc_opts[@]}"
 			fi
 		fi
 	EOF
@@ -4260,7 +4285,8 @@ function setup_tx11stop_cmd() {
 			killall virgl_test_server > /dev/null 2>&1
 			pkill -9 openbox* > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
-			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|x0vncserver|websockify|novnc-audio-server.py" > /dev/null 2>&1 || true
+			pactl set-default-sink OpenSL_ES_sink > /dev/null 2>&1 || true
 			pkill -f com.termux.x11 > /dev/null 2>&1
 			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
 			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
@@ -4276,7 +4302,8 @@ function setup_tx11stop_cmd() {
 			killall virgl_test_server > /dev/null 2>&1
 			pkill -9 pulseaudio > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
-			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|x0vncserver|websockify|novnc-audio-server.py" > /dev/null 2>&1 || true
+			pactl set-default-sink OpenSL_ES_sink > /dev/null 2>&1 || true
 			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
 			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
 			rm -rf "\$TMPDIR/pulse/"* "$TERMUX_PREFIX/tmp/pulse-"* > /dev/null 2>&1 || true
@@ -4324,7 +4351,8 @@ function setup_tx11stop_cmd() {
 			killall virgl_test_server > /dev/null 2>&1
 			pkill -9 \$de_name-* > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
-			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|x0vncserver|websockify|novnc-audio-server.py" > /dev/null 2>&1 || true
+			pactl set-default-sink OpenSL_ES_sink > /dev/null 2>&1 || true
 			pkill -f com.termux.x11 > /dev/null 2>&1
 			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
 			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
@@ -4339,7 +4367,8 @@ function setup_tx11stop_cmd() {
 			killall virgl_test_server > /dev/null 2>&1
 			pkill -9 pulseaudio > /dev/null 2>&1
 			pkill -9 dbus-* > /dev/null 2>&1
-			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|websockify" > /dev/null 2>&1 || true
+			pkill -9 -f "firefox|chromium|chrome|geckodriver|x11vnc|x0vncserver|websockify|novnc-audio-server.py" > /dev/null 2>&1 || true
+			pactl set-default-sink OpenSL_ES_sink > /dev/null 2>&1 || true
 			find "$TERMUX_HOME/.mozilla" /home/*/.mozilla -name "*lock*" -delete > /dev/null 2>&1 || true
 			rm -rf "$TERMUX_PREFIX/tmp/.X0-lock" /tmp/.X0-lock "$TERMUX_PREFIX/tmp/.X11-unix/X0" /tmp/.X11-unix/X0 > /dev/null 2>&1 || true
 			rm -rf "\$TMPDIR/pulse/"* "$TERMUX_PREFIX/tmp/pulse-"* > /dev/null 2>&1 || true
@@ -4986,6 +5015,9 @@ function terminal_utility_setup() {
 		download_file "$TERMUX_PREFIX/bin/novnc-headless" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-headless" && chmod +x "$TERMUX_PREFIX/bin/novnc-headless"
 		download_file "$TERMUX_PREFIX/bin/novnc-audio" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio"
 		download_file "$TERMUX_PREFIX/bin/novnc-audio-server.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio-server.py" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio-server.py"
+		download_file "$TERMUX_PREFIX/bin/patch-novnc-audio.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/patch-novnc-audio.py" && chmod +x "$TERMUX_PREFIX/bin/patch-novnc-audio.py"
+		download_file "$TERMUX_PREFIX/share/novnc-audio.svg" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio.svg"
+		python3 "$TERMUX_PREFIX/bin/patch-novnc-audio.py" >/dev/null 2>&1 || true
 		check_and_create_directory "$TERMUX_HOME/.config/git/conf.d"
 		download_file "$TERMUX_HOME/.config/git/conf.d" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/git-config.conf"
 		cat >>"${TERMUX_HOME}/.config/git/config" <<-EOF

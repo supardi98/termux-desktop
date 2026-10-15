@@ -14,6 +14,8 @@ _tx11start() {
         '--debug[Show debug log]'
         '--novnc[Start noVNC web server and display connection URL]'
         '--headless[Start desktop in headless mode without opening Termux:X11 app]'
+        '--audio[Start audio streaming to browser alongside desktop]'
+        '--ssl[Enable HTTPS/WSS encryption with self-signed SSL certificate]'
     )
 
     # Prevent suggestions if --help is already typed

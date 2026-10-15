@@ -13,6 +13,8 @@ import time
 import socket
 import struct
 import threading
+import argparse
+import ssl
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
@@ -334,10 +336,30 @@ class AudioHandler(BaseHTTPRequestHandler):
         return
 
 def main():
+    global AUDIO_PORT, PULSE_TCP_PORT
+    parser = argparse.ArgumentParser(description="noVNC Audio Streamer")
+    parser.add_argument("--port", type=int, default=AUDIO_PORT, help="Port to listen on (default: 6081)")
+    parser.add_argument("--pulse-port", type=int, default=PULSE_TCP_PORT, help="PulseAudio TCP port (default: 4714)")
+    parser.add_argument("--ssl", action="store_true", help="Enable HTTPS/TLS encryption")
+    parser.add_argument("--cert", type=str, default="", help="Path to SSL certificate PEM file")
+    args = parser.parse_args()
+
+    AUDIO_PORT = args.port
+    PULSE_TCP_PORT = args.pulse_port
+
     t = threading.Thread(target=audio_broadcaster, daemon=True)
     t.start()
 
     server = ThreadedHTTPServer(('0.0.0.0', AUDIO_PORT), AudioHandler)
+
+    if args.ssl and args.cert and os.path.exists(args.cert):
+        try:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(certfile=args.cert)
+            server.socket = ctx.wrap_socket(server.socket, server_side=True)
+        except Exception as e:
+            sys.stderr.write(f"[!] Gagal mengaktifkan SSL audio server: {e}\n")
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:

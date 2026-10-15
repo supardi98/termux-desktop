@@ -190,21 +190,43 @@ Access your Linux desktop directly from any web browser on your PC, Laptop, or T
 Start the Termux:X11 desktop and noVNC web server together in a single command:
 
 ```bash
-tx11start --novnc             # Normal mode + web browser access
-tx11start --novnc --headless  # Pure background mode (Termux:X11 app window stays closed)
+tx11start --novnc                     # Normal mode + web browser access
+tx11start --novnc --audio             # Start desktop, noVNC, and audio streamer together
+tx11start --novnc --ssl               # Start with HTTPS/WSS encryption (Self-Signed SSL)
+tx11start --novnc --headless          # Pure background mode (Termux:X11 app window stays closed)
+tx11start --novnc --headless --audio  # Headless background + desktop + audio stream
 ```
 
 #### 2. Manual Controls
 If the desktop is already running:
 
 ```bash
-novnc-start       # Start noVNC (Open http://<phone-ip>:6080)
-novnc-stop        # Stop noVNC server
-novnc-headless    # Shortcut for tx11start --novnc --headless
+novnc-start                   # Start noVNC (Open http://<phone-ip>:6080)
+novnc-start --audio           # Start noVNC and web audio streamer together
+novnc-start --ssl             # Start noVNC with HTTPS/WSS encryption
+novnc-stop                    # Stop noVNC & audio server
+novnc-headless                # Shortcut for tx11start --novnc --headless
+novnc-headless --audio --ssl  # Headless with audio & SSL encryption
 ```
 *(Aliases: `novncstart`, `novncstop`, and `novncheadless`)*
 
-#### 3. Password Protection
+#### 3. Single-Tab Audio Experience (Bilah noVNC)
+You don't need to open two tabs! The noVNC web interface includes an embedded audio widget:
+1. Open **`http(s)://<phone-ip>:6080/`** in your browser.
+2. Click the **🔊 Speaker** button in the left toolbar.
+3. Click **`▶ Mulai Suara`** and adjust the volume slider directly inside the same tab!
+*(The standalone audio player remains available at `http(s)://<phone-ip>:6081/`)*
+
+#### 4. HTTPS / WSS Encryption (Self-Signed SSL)
+Enable secure encrypted access over Wi-Fi and Tailscale with automatic certificate generation:
+
+```bash
+novnc-start --ssl             # HTTPS on port 6080, WSS for WebSockets
+novnc-audio start --ssl       # HTTPS for audio stream on port 6081
+```
+*Benefits:* Unblocks modern browser security restrictions (such as bidirectional clipboard sync `navigator.clipboard` and audio autoplay without security warnings).
+
+#### 5. Password Protection
 Protect your web desktop from unauthorized access on shared networks (Wi-Fi / Tailscale):
 
 ```bash
@@ -215,18 +237,17 @@ novnc-start --passwd pass # Use temporary password for this session
 ```
 *(Alias: `novncpasswd`)*
 
-#### 4. Web Audio Streaming (Browser Sound)
+#### 6. Web Audio Streaming CLI (Browser Sound)
 Stream desktop sound (YouTube, media, games) directly to your laptop/PC browser while keeping the phone speaker silent:
 
 ```bash
 novnc-audio start             # Start audio stream on port 6081 (phone muted by default)
 novnc-audio start --both      # Sound plays on BOTH phone speaker and browser
+novnc-audio start --ssl       # Stream audio over HTTPS
 novnc-audio stop              # Stop audio stream and restore phone speaker
 novnc-audio status            # Check audio streaming status
 ```
 *(Alias: `novncaudio`)*
-
-Open **`http://<phone-ip>:6081`** in a new browser tab and click **`▶ Mulai Suara`** to listen in sync with noVNC.
 
 ### GUI Commands
 
