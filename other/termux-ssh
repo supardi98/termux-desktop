@@ -50,8 +50,20 @@ EOF
     fi
 
     if [ ! -f "$pts_fix" ] && [ -x "/data/data/com.termux/files/usr/bin/clang" ]; then
-        local src="/home/supardi/termux-desktop/other/ssh_pts_fix.c"
-        if [ -f "$src" ]; then
+        local src=""
+        for candidate in \
+            "/data/data/com.termux/files/usr/share/termux-desktop/ssh_pts_fix.c" \
+            "/home/supardi/termux-desktop/other/ssh_pts_fix.c" \
+            "$(dirname "$0")/../share/termux-desktop/ssh_pts_fix.c"; do
+            if [ -f "$candidate" ]; then
+                src="$candidate"
+                break
+            fi
+        done
+        if [ -z "$src" ]; then
+            curl -fsSL "https://raw.githubusercontent.com/supardi98/termux-desktop/main/other/ssh_pts_fix.c" -o "/data/data/com.termux/files/usr/tmp/ssh_pts_fix.c" 2>/dev/null && src="/data/data/com.termux/files/usr/tmp/ssh_pts_fix.c"
+        fi
+        if [ -n "$src" ] && [ -f "$src" ]; then
             /data/data/com.termux/files/usr/bin/clang -shared -fPIC -O2 "$src" -o "$pts_fix" 2>/dev/null
         fi
     fi

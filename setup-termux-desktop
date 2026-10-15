@@ -4978,7 +4978,7 @@ function terminal_utility_setup() {
 		banner
 		print_msg "${C}${BOLD}Configuring Terminal Utility For Termux..."
 		echo
-		package_install_and_check "bat eza zoxide fastfetch openssh fzf git-delta"
+		package_install_and_check "bat eza zoxide fastfetch openssh fzf git-delta patchelf"
 		if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
 			package_install_and_check "nala"
 		fi
@@ -5016,7 +5016,16 @@ function terminal_utility_setup() {
 		download_file "$TERMUX_PREFIX/bin/novnc-audio" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio"
 		download_file "$TERMUX_PREFIX/bin/novnc-audio-server.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio-server.py" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio-server.py"
 		download_file "$TERMUX_PREFIX/bin/novnc-powersave" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-powersave" && chmod +x "$TERMUX_PREFIX/bin/novnc-powersave"
-		download_file "$TERMUX_PREFIX/bin/termux-ssh" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/termux-ssh" && chmod +x "$TERMUX_PREFIX/bin/termux-ssh"
+		check_and_create_directory "$TERMUX_PREFIX/share/termux-desktop"
+		download_file "$TERMUX_PREFIX/share/termux-desktop/ssh_pts_fix.c" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/ssh_pts_fix.c"
+		if command -v clang >/dev/null 2>&1 && [ -f "$TERMUX_PREFIX/share/termux-desktop/ssh_pts_fix.c" ]; then
+			clang -shared -fPIC -O2 "$TERMUX_PREFIX/share/termux-desktop/ssh_pts_fix.c" -o "$TERMUX_PREFIX/lib/libssh_pts_fix.so" 2>/dev/null || true
+			if [ -f "$TERMUX_PREFIX/libexec/sshd-session" ] && command -v patchelf >/dev/null 2>&1; then
+				if ! patchelf --print-needed "$TERMUX_PREFIX/libexec/sshd-session" 2>/dev/null | grep -q "libssh_pts_fix.so"; then
+					patchelf --add-needed libssh_pts_fix.so "$TERMUX_PREFIX/libexec/sshd-session" 2>/dev/null || true
+				fi
+			fi
+		fi
 		download_file "$TERMUX_PREFIX/bin/td-backup" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/td-backup" && chmod +x "$TERMUX_PREFIX/bin/td-backup"
 		download_file "$TERMUX_PREFIX/bin/td-restore" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/td-restore" && chmod +x "$TERMUX_PREFIX/bin/td-restore"
 		download_file "$TERMUX_PREFIX/bin/patch-novnc-audio.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/patch-novnc-audio.py" && chmod +x "$TERMUX_PREFIX/bin/patch-novnc-audio.py"
@@ -5033,6 +5042,11 @@ function terminal_utility_setup() {
 		mv "${shell_rc_file}-2" "${shell_rc_file}"
 
 		cat <<-EOF >>"$TERMUX_HOME/.shell_rc_content"
+			# Clear Android Bionic LD_PRELOAD in Debian PRoot to avoid glibc ELF conflicts
+			if [ -n "\$LD_PRELOAD" ] && echo "\$LD_PRELOAD" | grep -q "termux"; then
+			    unset LD_PRELOAD
+			fi
+
 			# set zoxide as cd
 			eval "\$(zoxide init --cmd cd ${shell_name})"
 
