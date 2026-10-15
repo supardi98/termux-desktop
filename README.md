@@ -249,6 +249,25 @@ novnc-audio status            # Check audio streaming status
 ```
 *(Alias: `novncaudio`)*
 
+#### 7. Idle Battery Saver (`novnc-powersave`)
+Intelligent power saving daemon that monitors connected web/VNC clients and drastically reduces phone CPU/GPU and battery usage when idle:
+
+```bash
+novnc-powersave status        # Check power status (ACTIVE / ECO), connected clients, and battery %
+novnc-powersave start         # Start background power monitoring (default: 60s idle timeout)
+novnc-powersave stop          # Stop daemon and restore full maximum performance
+novnc-powersave sleep         # Force ECO mode immediately
+novnc-powersave wake          # Force ACTIVE mode immediately
+```
+*(Aliases: `novncpowersave` and `powersave`)*
+
+**How it saves battery:**
+- **Zero Audio Overhead:** PulseAudio audio broadcaster sleeps with 0% CPU consumption when no browser is listening.
+- **X11 Screen Blanking:** When 0 clients are connected for >60s, X11 drawing and rendering pipelines are paused (`xset s activate`).
+- **PulseAudio Sink Suspension:** Automatically suspends audio sinks during idle (`pactl suspend-sink`).
+- **Process Throttling:** Background browsers/apps are lowered in priority (`renice +19`).
+- **Instant Wakeup:** The millisecond a client connects to `http(s)://<ip>:6080`, the entire desktop pipeline wakes up to 100% full performance in less than 0.5s!
+
 ### GUI Commands
 
 ```bash

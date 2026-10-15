@@ -6,6 +6,13 @@
 
 pkill -9 -f "x0vncserver|x11vnc|websockify.*6080" >/dev/null 2>&1 || true
 
+# Stop powersave daemon
+if command -v novnc-powersave >/dev/null 2>&1; then
+    novnc-powersave stop >/dev/null 2>&1 || true
+else
+    pkill -9 -f "novnc-powersave" >/dev/null 2>&1 || true
+fi
+
 # Stop audio streamer and restore speaker
 if command -v novnc-audio >/dev/null 2>&1; then
     novnc-audio stop >/dev/null 2>&1 || true
@@ -14,4 +21,4 @@ else
     pactl set-default-sink OpenSL_ES_sink >/dev/null 2>&1 || true
 fi
 
-echo "[✓] Server noVNC, VNC Server, dan Audio Streaming telah dihentikan."
+echo "[✓] Server noVNC, VNC Server, Audio Streaming, dan Penghemat Daya telah dihentikan."

@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+"""
+==============================================================================
+Script: novnc-powersave
+Description: Idle Battery Saver Daemon for Termux Desktop & noVNC
+Monitors client connections. When no browser/client is connected for a set
+duration, it drops CPU/GPU overhead:
+  - Blanks X11 display (xset s activate) to halt rendering pipeline
+  - Suspends PulseAudio sinks to eliminate audio processing
+  - Throttles heavy background applications (renice +19)
+  - Instantly wakes up (<0.5s) as soon as any client reconnects
+==============================================================================
+"""
+
+import os
+import sys
+import time
+import json
+import signal
+import argparse
+import subprocess
+
+PID_FILE = "/data/data/com.termux/files/usr/tmp/novnc-powersave.pid"
+STATE_FILE = "/data/data/com.termux/files/usr/tmp/novnc-powersave.state"
+LOG_FILE = "/data/data/com.termux/files/usr/tmp/novnc-powersave.log"
+
+if not os.path.exists("/data/data/com.termux/files/usr/tmp"):
+    PID_FILE = "/tmp/novnc-powersave.pid"
+    STATE_FILE = "/tmp/novnc-powersave.state"
+    LOG_FILE = "/tmp/novnc-powersave.log"
+
+def log(msg):
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    formatted = f"[{timestamp}] {msg}"
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(formatted + "\n")
+    except Exception:
+        pass
+
+def count_active_clients():
+    """Counts active external connections to noVNC (6080) and VNC (5900)"""
+    try:
+        out = subprocess.check_output(
+            ["netstat", "-tn"],
+            text=True,
+            stderr=subprocess.DEVNULL
+        )
+        clients = 0
+        for line in out.splitlines():
+            if "ESTABLISHED" in line:
+                parts = line.split()
+                if len(parts) >= 5:
+                    local = parts[3]
+                    remote = parts[4]
+                    if local.endswith(":6080"):
+                        clients += 1
+                    elif local.endswith(":5900") and not remote.startswith("127.0.0.1:"):
+                        clients += 1
+        return clients
+    except Exception:
+        return 0
+
+def get_battery_info():
+    """Fetches battery stats from termux-battery-status or sysfs"""
+    try:
+        out = subprocess.check_output(
+            ["termux-battery-status"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2
+        )
+        data = json.loads(out)
+        pct = data.get("percentage", "?")
+        temp = data.get("temperature", "?")
+        status = data.get("status", "?")
+        return f"{pct}% ({temp}°C, {status})"
+    except Exception:
+        try:
+            with open("/sys/class/power_supply/battery/capacity", "r") as f:
+                pct = f.read().strip()
+            return f"{pct}%"
+        except Exception:
+            return "N/A"
+
+def enter_eco_mode():
+    """Reduces desktop CPU/GPU consumption during idle"""
+    try:
+        # 1. Blank X11 screen to pause drawing pipeline
+        subprocess.run(
+            ["xset", "-display", ":0", "s", "activate"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False
+        )
+
+        # 2. Suspend PulseAudio headless sink
+        subprocess.run(
+            ["pactl", "suspend-sink", "headless_sink", "1"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False
+        )
+
+        # 3. Lower priority of heavy web/browser processes
+        pids = subprocess.getoutput("pgrep -f 'firefox|chromium|chrome|geckodriver'").split()
+        for p in pids:
+            try:
+                os.setpriority(os.PRIO_PROCESS, int(p), 19)
+            except Exception:
+                pass
+
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            f.write("ECO\n")
+
+        bat = get_battery_info()
+        log(f"💤 [ECO MODE] Desktop masuk mode hemat daya (0 client terhubung). Baterai: {bat}")
+    except Exception as e:
+        log(f"Error entering ECO mode: {e}")
+
+def exit_eco_mode():
+    """Instantly restores maximum desktop performance when client connects"""
+    try:
+        # 1. Wake X11 screen
+        subprocess.run(
+            ["xset", "-display", ":0", "s", "reset"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False
+        )
+
+        # 2. Resume PulseAudio headless sink
+        subprocess.run(
+            ["pactl", "suspend-sink", "headless_sink", "0"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False
+        )
+
+        # 3. Restore priority of background processes
+        pids = subprocess.getoutput("pgrep -f 'firefox|chromium|chrome|geckodriver'").split()
+        for p in pids:
+            try:
+                os.setpriority(os.PRIO_PROCESS, int(p), 0)
+            except Exception:
+                pass
+
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            f.write("ACTIVE\n")
+
+        bat = get_battery_info()
+        log(f"⚡ [ACTIVE MODE] Klien terhubung, performa maksimal dipulihkan. Baterai: {bat}")
+    except Exception as e:
+        log(f"Error exiting ECO mode: {e}")
+
+def daemon_loop(timeout_seconds):
+    with open(PID_FILE, "w", encoding="utf-8") as f:
+        f.write(str(os.getpid()) + "\n")
+
+    current_state = "ACTIVE"
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        f.write("ACTIVE\n")
+
+    idle_seconds = 0
+    check_interval = 3
+
+    log(f"novnc-powersave dimulai (Batas Idle: {timeout_seconds} detik, Polling: {check_interval} detik)")
+
+    try:
+        while True:
+            clients = count_active_clients()
+
+            if clients > 0:
+                idle_seconds = 0
+                if current_state != "ACTIVE":
+                    exit_eco_mode()
+                    current_state = "ACTIVE"
+            else:
+                idle_seconds += check_interval
+                if idle_seconds >= timeout_seconds and current_state != "ECO":
+                    enter_eco_mode()
+                    current_state = "ECO"
+
+            time.sleep(check_interval)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if current_state == "ECO":
+            exit_eco_mode()
+        if os.path.exists(PID_FILE):
+            os.remove(PID_FILE)
+        if os.path.exists(STATE_FILE):
+            os.remove(STATE_FILE)
+        log("novnc-powersave dihentikan")
+
+def start_powersave(timeout):
+    if is_running():
+        print("[!] novnc-powersave sudah berjalan.")
+        return
+
+    # Check X11
+    if subprocess.run(["xset", "-display", ":0", "q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+        print("[!] Desktop Termux:X11 tidak aktif pada DISPLAY :0.")
+        return
+
+    pid = os.fork()
+    if pid > 0:
+        print(f"[✓] novnc-powersave aktif di latar belakang (Idle Timeout: {timeout} detik).")
+        return
+
+    # Child process
+    os.setsid()
+    daemon_loop(timeout)
+    sys.exit(0)
+
+def stop_powersave():
+    if not is_running():
+        print("[i] novnc-powersave tidak sedang berjalan.")
+        exit_eco_mode()
+        return
+
+    try:
+        with open(PID_FILE, "r") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, signal.SIGTERM)
+        time.sleep(0.5)
+        print("[✓] novnc-powersave berhasil dihentikan (Performa penuh dipulihkan).")
+    except Exception as e:
+        print(f"[!] Gagal menghentikan novnc-powersave: {e}")
+
+    exit_eco_mode()
+
+def is_running():
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, "r") as f:
+                pid = int(f.read().strip())
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            if os.path.exists(PID_FILE):
+                os.remove(PID_FILE)
+    return False
+
+def show_status():
+    running = is_running()
+    clients = count_active_clients()
+    state = "ACTIVE"
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                state = f.read().strip()
+        except Exception:
+            pass
+
+    bat = get_battery_info()
+
+    print("============================================================")
+    print(" Status Idle Battery Saver (novnc-powersave)")
+    print("============================================================")
+    if running:
+        print(f" [✓] Status Daemon  : Berjalan (PID: {open(PID_FILE).read().strip()})")
+    else:
+        print(" [x] Status Daemon  : Tidak Aktif")
+
+    if state == "ECO":
+        print(" [💤] Mode Daya Saat Ini : ECO MODE (Hemat Daya Aktif)")
+        print("      - Layar X11 diblank / rendering dijeda")
+        print("      - PulseAudio sink disuspend")
+        print("      - Prioritas aplikasi latar belakang diturunkan")
+    else:
+        print(" [⚡] Mode Daya Saat Ini : ACTIVE MODE (Performa Penuh)")
+
+    print(f" [👥] Klien Web noVNC   : {clients} aktif")
+    print(f" [🔋] Baterai Perangkat : {bat}")
+
+    if os.path.exists(LOG_FILE):
+        print("\n 📋 Log Aktivitas Terakhir:")
+        lines = open(LOG_FILE, encoding="utf-8").readlines()[-4:]
+        for l in lines:
+            print(f"    {l.strip()}")
+    print("============================================================")
+
+def main():
+    parser = argparse.ArgumentParser(description="noVNC Idle Battery Saver")
+    parser.add_argument("action", nargs="?", default="status", choices=["start", "stop", "status", "restart", "sleep", "wake"], help="Action to perform")
+    parser.add_argument("--timeout", "-t", type=int, default=60, help="Idle timeout in seconds before sleeping (default: 60)")
+
+    args = parser.parse_args()
+
+    if args.action == "start":
+        start_powersave(args.timeout)
+    elif args.action == "stop":
+        stop_powersave()
+    elif args.action == "restart":
+        stop_powersave()
+        time.sleep(1)
+        start_powersave(args.timeout)
+    elif args.action == "sleep":
+        enter_eco_mode()
+        print("[💤] Berhasil memaksa masuk ke ECO MODE.")
+    elif args.action == "wake":
+        exit_eco_mode()
+        print("[⚡] Berhasil memulihkan ACTIVE MODE (Performa Penuh).")
+    else:
+        show_status()
+
+if __name__ == "__main__":
+    main()

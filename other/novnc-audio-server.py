@@ -55,11 +55,21 @@ def audio_broadcaster():
     """Reads raw PCM from PulseAudio simple-protocol socket and broadcasts to HTTP clients"""
     global broadcaster_running
     while broadcaster_running:
+        # Idle Battery Saver: Only connect to PulseAudio when at least one client is listening
+        with clients_lock:
+            has_clients = len(connected_clients) > 0
+        if not has_clients:
+            time.sleep(0.5)
+            continue
+
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect(('127.0.0.1', PULSE_TCP_PORT))
-            s.settimeout(2.0)
+            s.settimeout(1.0)
             while broadcaster_running:
+                with clients_lock:
+                    if len(connected_clients) == 0:
+                        break  # Enter idle power save mode
                 try:
                     data = s.recv(4096)
                     if not data:

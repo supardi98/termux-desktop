@@ -14,6 +14,8 @@ VNC_PASS=""
 NO_PW=false
 START_AUDIO=false
 USE_SSL=false
+ENABLE_POWERSAVE=true
+POWERSAVE_TIMEOUT=60
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -34,10 +36,19 @@ while [ $# -gt 0 ]; do
         --ssl|-ssl)
             USE_SSL=true
             ;;
+        --no-powersave)
+            ENABLE_POWERSAVE=false
+            ;;
+        --powersave-timeout)
+            shift
+            POWERSAVE_TIMEOUT="$1"
+            ;;
         --help|-h)
             echo "Penggunaan: novnc-start [opsi]"
             echo "  --audio                 Nyalakan juga server audio web (port 6081)"
             echo "  --ssl                   Aktifkan enkripsi HTTPS/WSS (Self-Signed SSL)"
+            echo "  --no-powersave          Matikan penghemat daya otomatis saat idle"
+            echo "  --powersave-timeout <s> Ubah batas waktu idle sebelum tidur (default: 60s)"
             echo "  --passwd <kata_sandi>   Gunakan kata sandi sementara untuk sesi ini"
             echo "  --nopw                  Akses tanpa kata sandi (abaikan ~/.vnc/passwd)"
             echo "  --port <port>           Ubah port noVNC web (default: 6080)"
@@ -177,6 +188,17 @@ if [ "$START_AUDIO" = true ]; then
     fi
 fi
 
+# Start Idle Battery Saver if enabled
+if [ "$ENABLE_POWERSAVE" = true ]; then
+    if command -v novnc-powersave >/dev/null 2>&1; then
+        novnc-powersave start --timeout "$POWERSAVE_TIMEOUT" >/dev/null 2>&1
+    elif [ -x "$SCRIPT_DIR/novnc-powersave" ]; then
+        "$SCRIPT_DIR/novnc-powersave" start --timeout "$POWERSAVE_TIMEOUT" >/dev/null 2>&1
+    elif [ -x "/data/data/com.termux/files/usr/bin/novnc-powersave" ]; then
+        /data/data/com.termux/files/usr/bin/novnc-powersave start --timeout "$POWERSAVE_TIMEOUT" >/dev/null 2>&1
+    fi
+fi
+
 # Detect local IP and Tailscale IP
 LOCAL_IP=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -vE '127.0.0.1|^100\.' | head -n 1)
 [ -z "$LOCAL_IP" ] && LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -194,6 +216,9 @@ echo " $PW_STATUS"
 if [ "$PROTO" = "https" ]; then
     echo " [🔒] Protokol Keamanan : HTTPS / WSS (Enkripsi SSL Aktif)"
 fi
+if [ "$ENABLE_POWERSAVE" = true ]; then
+    echo " [🔋] Hemat Daya Idle  : novnc-powersave Aktif (Tidur otomatis jika idle ${POWERSAVE_TIMEOUT}s)"
+fi
 echo ""
 echo " Buka browser di Laptop / PC / Tablet:"
 echo "   👉 Layar Desktop : ${PROTO}://${LOCAL_IP}:${PORT}/"
@@ -209,7 +234,8 @@ fi
 echo "   👉 Lokal HP      : ${PROTO}://localhost:${PORT}/"
 echo ""
 echo " Perintah terkait:"
-echo "   - novnc-audio  : Kontrol streaming suara ke browser"
-echo "   - novnc-passwd : Atur / hapus password proteksi"
-echo "   - novnc-stop   : Hentikan server noVNC & audio"
+echo "   - novnc-powersave: Pantau / atur mode hemat daya baterai"
+echo "   - novnc-audio    : Kontrol streaming suara ke browser"
+echo "   - novnc-passwd   : Atur / hapus password proteksi"
+echo "   - novnc-stop     : Hentikan server noVNC, audio, & powersave"
 echo "============================================================"
