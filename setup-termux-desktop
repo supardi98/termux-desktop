@@ -4988,6 +4988,8 @@ function terminal_utility_setup() {
 		download_file "$TERMUX_PREFIX/etc/motd.sh" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/motd.sh"
 		check_and_backup "$TERMUX_PREFIX/etc/termux-login.sh"
 		cat >"$TERMUX_PREFIX/etc/termux-login.sh" <<-EOF
+			export LANG="\${LANG:-en_US.UTF-8}"
+			export LC_ALL="\${LC_ALL:-en_US.UTF-8}"
 			if [ -t 0 ]; then
 				bash $TERMUX_PREFIX/etc/motd.sh
 			fi
@@ -5046,6 +5048,10 @@ function terminal_utility_setup() {
 			if [ -n "\$LD_PRELOAD" ] && echo "\$LD_PRELOAD" | grep -q "termux"; then
 			    unset LD_PRELOAD
 			fi
+
+			# Ensure UTF-8 locale is always active
+			export LANG="en_US.UTF-8"
+			export LC_ALL="en_US.UTF-8"
 
 			# set zoxide as cd
 			eval "\$(zoxide init --cmd cd ${shell_name})"
