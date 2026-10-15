@@ -1,3 +1,10 @@
 .github/scripts/turnip_workdir
 __pycache__/
 *.pyc
+*.key
+*.pem
+*.pub
+*id_rsa*
+*id_ed25519*
+*authorized_keys*
+*.termux_authinfo
