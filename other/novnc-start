@@ -47,6 +47,24 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# Check if X server is actually running before starting VNC
+if ! xset q -display "$DISPLAY" >/dev/null 2>&1; then
+    echo ""
+    echo "============================================================"
+    echo " [!] Desktop Termux:X11 belum aktif pada DISPLAY $DISPLAY!"
+    echo "============================================================"
+    echo " Server noVNC membutuhkan desktop Linux yang sedang berjalan."
+    echo ""
+    echo " 👉 Untuk menyalakan desktop sekaligus web noVNC, jalankan:"
+    echo "    tx11start --novnc"
+    echo ""
+    echo " 👉 Atau mode background murni (tanpa membuka jendela Termux:X11):"
+    echo "    tx11start --novnc --headless"
+    echo "    (atau cukup ketik: novnc-headless)"
+    echo "============================================================"
+    exit 1
+fi
+
 # Stop any existing instances first
 pkill -9 -f "x11vnc|websockify.*${PORT}" >/dev/null 2>&1 || true
 
@@ -65,6 +83,12 @@ fi
 # Start x11vnc attached to DISPLAY on loopback only for security
 echo "[i] Menjalankan x11vnc pada DISPLAY $DISPLAY..."
 x11vnc -display "$DISPLAY" -forever -shared $PW_ARGS -listen 127.0.0.1 -rfbport "$RFBPORT" -noxdamage -bg >/dev/null 2>&1
+sleep 1
+
+if ! pgrep -f "x11vnc.*${RFBPORT}" >/dev/null 2>&1; then
+    echo "[☓] Gagal menjalankan x11vnc. Periksa koneksi DISPLAY $DISPLAY."
+    exit 1
+fi
 
 # Start websockify / noVNC web server
 echo "[i] Menjalankan noVNC Web Server pada port $PORT..."
