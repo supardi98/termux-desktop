@@ -1,0 +1,176 @@
+#!/bin/bash
+# ==============================================================================
+# Script: clip (also symlinked as cb, clipcopy, clippaste)
+# Description: Universal Clipboard Bridge supporting OSC 52 (SSH to Kitty/Wezterm)
+#              and X11 (xclip/xsel) simultaneously.
+#
+# Usage:
+#   echo "Text" | clip            # Copy stdin to laptop & X11 clipboard
+#   clip "Text to copy"           # Copy arguments to laptop & X11 clipboard
+#   clip myfile.txt               # Copy file contents to clipboard
+#   clip -p / clippaste           # Print current clipboard content to stdout
+#   clip -c / clip --clear        # Clear clipboard
+#   clip -h / clip --help         # Show help
+# ==============================================================================
+
+set -euo pipefail
+
+PROGNAME="$(basename "$0")"
+
+show_help() {
+    cat << EOF
+Universal Clipboard Bridge (OSC 52 + X11 + Android)
+
+Usage:
+  echo "hello" | $PROGNAME        Copy piped text to laptop & desktop clipboard
+  $PROGNAME "some text"           Copy argument string to clipboard
+  $PROGNAME filename.txt          Copy file content to clipboard
+  $PROGNAME -p, --paste           Output clipboard content to stdout
+  $PROGNAME -c, --clear           Clear clipboard
+  $PROGNAME -h, --help            Show this help message
+
+Aliases:
+  cb, clipcopy, clippaste
+
+Supported Targets:
+  ✓ Remote Laptop OS (Kitty, WezTerm, Alacritty, iTerm2, Windows Terminal via OSC 52)
+  ✓ Desktop X11 (via xclip / xsel)
+  ✓ Android System (via Termux API when available)
+EOF
+    exit 0
+}
+
+send_osc52() {
+    local data="$1"
+    local b64
+    b64=$(printf "%s" "$data" | base64 | tr -d '\r\n')
+
+    local target_tty=""
+    if [ -t 1 ]; then
+        target_tty="/dev/stdout"
+    elif [ -c /dev/tty ] && [ -w /dev/tty ]; then
+        target_tty="/dev/tty"
+    fi
+
+    if [ -n "$target_tty" ]; then
+        if [ -n "${TMUX:-}" ]; then
+            # Tmux passthrough sequence
+            printf "\033Ptmux;\033\033]52;c;%s\a\033\\" "$b64" > "$target_tty" 2>/dev/null || true
+        elif [ -n "${STY:-}" ]; then
+            # GNU Screen passthrough sequence
+            printf "\033P\033]52;c;%s\a\033\\" "$b64" > "$target_tty" 2>/dev/null || true
+        else
+            # Standard terminal (Kitty, WezTerm, Alacritty, Windows Terminal)
+            printf "\033]52;c;%s\a" "$b64" > "$target_tty" 2>/dev/null || true
+        fi
+    fi
+}
+
+copy_to_x11() {
+    local data="$1"
+    local disp="${DISPLAY:-:0}"
+    if command -v xclip >/dev/null 2>&1; then
+        printf "%s" "$data" | DISPLAY="$disp" xclip -selection clipboard -i 2>/dev/null || true
+        printf "%s" "$data" | DISPLAY="$disp" xclip -selection primary -i 2>/dev/null || true
+    elif command -v xsel >/dev/null 2>&1; then
+        printf "%s" "$data" | DISPLAY="$disp" xsel -b -i 2>/dev/null || true
+        printf "%s" "$data" | DISPLAY="$disp" xsel -p -i 2>/dev/null || true
+    fi
+}
+
+copy_to_android() {
+    local data="$1"
+    if command -v termux-clipboard-set >/dev/null 2>&1; then
+        # Run with short timeout so it never hangs if screen is off / API unavailable
+        printf "%s" "$data" | timeout 0.3 termux-clipboard-set 2>/dev/null || true
+    fi
+}
+
+do_copy() {
+    local content="$1"
+    send_osc52 "$content"
+    copy_to_x11 "$content"
+    copy_to_android "$content"
+    # Local fallback cache
+    printf "%s" "$content" > "/tmp/.clipboard_${USER:-1000}" 2>/dev/null || true
+    local char_count="${#content}"
+    if [ -t 2 ]; then
+        echo -e "\033[1;32m[✓]\033[0m Tersalin ke clipboard laptop & desktop ($char_count karakter)" >&2
+    fi
+}
+
+do_paste() {
+    local disp="${DISPLAY:-:0}"
+    # Try X11 first
+    if command -v xclip >/dev/null 2>&1; then
+        local out
+        if out=$(DISPLAY="$disp" xclip -selection clipboard -o 2>/dev/null); then
+            printf "%s" "$out"
+            return 0
+        fi
+    fi
+    if command -v xsel >/dev/null 2>&1; then
+        local out
+        if out=$(DISPLAY="$disp" xsel -b -o 2>/dev/null); then
+            printf "%s" "$out"
+            return 0
+        fi
+    fi
+    # Try local cache
+    local cache_file="/tmp/.clipboard_${USER:-1000}"
+    if [ -f "$cache_file" ]; then
+        cat "$cache_file"
+        return 0
+    fi
+    # Try Android
+    if command -v termux-clipboard-get >/dev/null 2>&1; then
+        local out
+        if out=$(timeout 0.3 termux-clipboard-get 2>/dev/null); then
+            printf "%s" "$out"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Mode detection: paste
+if [ "$PROGNAME" = "clippaste" ] || { [ $# -gt 0 ] && { [ "$1" = "-p" ] || [ "$1" = "--paste" ]; }; }; then
+    do_paste || exit 1
+    exit 0
+fi
+
+# Help
+if [ $# -gt 0 ] && { [ "$1" = "-h" ] || [ "$1" = "--help" ]; }; then
+    show_help
+fi
+
+# Clear
+if [ $# -gt 0 ] && { [ "$1" = "-c" ] || [ "$1" = "--clear" ]; }; then
+    do_copy ""
+    exit 0
+fi
+
+# Input source: piped stdin
+if [ ! -t 0 ]; then
+    input_data=$(cat)
+    do_copy "$input_data"
+    exit 0
+fi
+
+# Input source: arguments or file
+if [ $# -gt 0 ]; then
+    if [ $# -eq 1 ] && [ -f "$1" ] && [ -r "$1" ]; then
+        input_data=$(cat "$1")
+    else
+        input_data="$*"
+    fi
+    do_copy "$input_data"
+    exit 0
+fi
+
+# If called without arguments on a TTY: default to paste if output is redirected, or show help
+if [ ! -t 1 ]; then
+    do_paste || exit 1
+else
+    show_help
+fi

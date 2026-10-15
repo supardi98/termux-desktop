@@ -5030,9 +5030,15 @@ function terminal_utility_setup() {
 		fi
 		download_file "$TERMUX_PREFIX/bin/td-backup" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/td-backup" && chmod +x "$TERMUX_PREFIX/bin/td-backup"
 		download_file "$TERMUX_PREFIX/bin/td-restore" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/td-restore" && chmod +x "$TERMUX_PREFIX/bin/td-restore"
+		download_file "$TERMUX_PREFIX/bin/clip" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/clip" && chmod +x "$TERMUX_PREFIX/bin/clip"
+		ln -sf "$TERMUX_PREFIX/bin/clip" "$TERMUX_PREFIX/bin/cb"
+		ln -sf "$TERMUX_PREFIX/bin/clip" "$TERMUX_PREFIX/bin/clipcopy"
+		ln -sf "$TERMUX_PREFIX/bin/clip" "$TERMUX_PREFIX/bin/clippaste"
 		download_file "$TERMUX_PREFIX/bin/patch-novnc-audio.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/patch-novnc-audio.py" && chmod +x "$TERMUX_PREFIX/bin/patch-novnc-audio.py"
 		download_file "$TERMUX_PREFIX/share/novnc-audio.svg" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio.svg"
 		python3 "$TERMUX_PREFIX/bin/patch-novnc-audio.py" >/dev/null 2>&1 || true
+		download_file "$TERMUX_PREFIX/bin/patch-novnc-clipboard.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/patch-novnc-clipboard.py" && chmod +x "$TERMUX_PREFIX/bin/patch-novnc-clipboard.py"
+		python3 "$TERMUX_PREFIX/bin/patch-novnc-clipboard.py" >/dev/null 2>&1 || true
 		check_and_create_directory "$TERMUX_HOME/.config/git/conf.d"
 		download_file "$TERMUX_HOME/.config/git/conf.d" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/git-config.conf"
 		cat >>"${TERMUX_HOME}/.config/git/config" <<-EOF

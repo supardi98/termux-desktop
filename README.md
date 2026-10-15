@@ -309,6 +309,23 @@ td-restore <backup_file>  # Restore a specific backup archive with integrity che
 - **Auto Checksum Verification:** Generates and verifies SHA256 checksums to ensure zero archive corruption.
 - **Accessible Storage:** Stored directly in `/sdcard/Download/TermuxDesktopBackups/`, making backups instantly visible in Android's Files app and ready to transfer to PC/microSD/cloud.
 
+#### 10. Universal Clipboard Synchronization (`clip` / `cb` & noVNC Auto-Sync)
+Seamless two-way clipboard between your Laptop/PC, Desktop X11, and Android:
+
+- **Terminal & SSH (OSC 52):**
+  ```bash
+  echo "Hello Laptop" | clip   # Instantly copies text straight to your laptop OS clipboard
+  clip filename.txt            # Copy entire file to laptop & X11 clipboard
+  clip -p                      # Print current clipboard content
+  cb "Quick note"              # Quick alias for clip
+  ```
+  *Supports:* Kitty, WezTerm, Alacritty, iTerm2, Windows Terminal (even over SSH and tmux).
+
+- **noVNC Web Desktop (Auto Two-Way Sync):**
+  - **Laptop → Desktop:** Copy anything on your laptop (`Ctrl+C`), switch to the noVNC browser tab, and paste (`Ctrl+V`) directly into any desktop app. No need to open the side drawer!
+  - **Desktop → Laptop:** Copy text inside Debian desktop, and it is automatically pushed to your laptop OS clipboard with instant toast notification feedback.
+  - **Persistent Desktop Memory:** Powered by `xfce4-clipman` to retain clipboard history across app closures.
+
 ### GUI Commands
 
 ```bash

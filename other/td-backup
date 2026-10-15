@@ -259,7 +259,9 @@ run_backup_config() {
         "/usr/local/bin" \
         "/data/data/com.termux/files/usr/etc/termux-desktop" \
         "/data/data/com.termux/files/usr/etc/ssh/sshd_config.d" \
-        "/data/data/com.termux/files/usr/lib/libssh_pts_fix.so"
+        "/data/data/com.termux/files/usr/lib/libssh_pts_fix.so" \
+        "/data/data/com.termux/files/usr/bin/clip" \
+        "/data/data/com.termux/files/usr/bin/patch-novnc-clipboard.py"
     do
         if [ -e "$item" ]; then
             items_to_backup+=("$item")
