@@ -54,10 +54,11 @@ start_ssh() {
         echo "   👉 Lokal HP    : ssh -p $SSH_PORT ${USER_NAME}@localhost"
         echo ""
         echo " Tips Akses:"
-        echo "   - Password : Ketik 'passwd' jika belum membuat password"
-        echo "   - SSH Key  : Salin id_ed25519.pub ke ~/.ssh/authorized_keys"
-        echo "   - Ke Debian: Setelah login SSH, ketik 'pdrun' untuk masuk Debian"
-        echo "   - SFTP     : Host ${LOCAL_IP}, Port $SSH_PORT (FileZilla/WinSCP/VS Code)"
+        echo "   - Ubah Password : Ketik 'termux-ssh passwd' untuk mengatur/mengubah password SSH Termux"
+        echo "   - SSH Key       : Salin id_ed25519.pub ke ~/.ssh/authorized_keys (Rekomendasi, tanpa password)"
+        echo "   - Masuk Debian  : Setelah login ke Termux via SSH, ketik 'pdrun' untuk masuk Debian"
+        echo "   - Catatan       : Jika password salah, OpenSSH otomatis memutus koneksi (Connection closed)"
+        echo "   - SFTP          : Host ${LOCAL_IP}, Port $SSH_PORT (FileZilla/WinSCP/VS Code)"
         echo "============================================================"
     else
         echo "[☓] Gagal menjalankan sshd."
@@ -86,8 +87,20 @@ status_ssh() {
         if [ -n "$TAILSCALE_IP" ]; then
             echo "    Tailscale: ssh -p $SSH_PORT ${USER_NAME}@${TAILSCALE_IP}"
         fi
+        if [ ! -f "$TERMUX_HOME/.termux_authinfo" ] && [ ! -s "$TERMUX_HOME/.ssh/authorized_keys" ]; then
+            echo "    [!] Catatan: Password SSH belum diatur! Ketik 'termux-ssh passwd' untuk membuat password."
+        fi
     else
         echo "[x] Server SSH (sshd): TIDAK AKTIF (Jalankan 'termux-ssh start' atau 'startssh')"
+    fi
+}
+
+set_termux_passwd() {
+    echo "[i] Menjalankan pengaturan password SSH Termux..."
+    if [ -x "/data/data/com.termux/files/usr/bin/passwd" ]; then
+        /data/data/com.termux/files/usr/bin/passwd
+    else
+        passwd
     fi
 }
 
@@ -107,21 +120,20 @@ case "$1" in
         status_ssh
         ;;
     passwd)
-        passwd
+        set_termux_passwd
         ;;
     --help|-h)
         echo "Penggunaan: termux-ssh [start|stop|restart|status|passwd]"
         echo "  start    - Nyalakan server SSH (port 8022)"
         echo "  stop     - Matikan server SSH"
         echo "  status   - Cek status dan perintah koneksi SSH"
-        echo "  passwd   - Set / ubah password SSH Termux"
+        echo "  passwd   - Set / ubah password SSH Termux (~/.termux_authinfo)"
         echo "Aliases: startssh, stopssh"
         ;;
     *)
-        if [[ ! -f "$MARKER_FILE" ]]; then
+        if [[ ! -f "$TERMUX_HOME/.termux_authinfo" && ! -s "$TERMUX_HOME/.ssh/authorized_keys" ]]; then
             echo "[i] Konfigurasi awal: Silakan atur password login SSH Termux:"
-            passwd
-            touch "$MARKER_FILE"
+            set_termux_passwd
         fi
         start_ssh
         ;;
