@@ -4212,7 +4212,11 @@ function setup_tx11start_cmd() {
 	cat <<-EOF >>"$TERMUX_PREFIX/bin/tx11start"
 		if \$use_novnc; then
 			if command -v novnc-start >/dev/null 2>&1; then
-				novnc-start
+				if \$use_headless; then
+					novnc-start --audio
+				else
+					novnc-start
+				fi
 			fi
 		fi
 	EOF
@@ -4980,6 +4984,8 @@ function terminal_utility_setup() {
 		download_file "$TERMUX_PREFIX/bin/novnc-stop" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-stop" && chmod +x "$TERMUX_PREFIX/bin/novnc-stop"
 		download_file "$TERMUX_PREFIX/bin/novnc-passwd" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-passwd" && chmod +x "$TERMUX_PREFIX/bin/novnc-passwd"
 		download_file "$TERMUX_PREFIX/bin/novnc-headless" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-headless" && chmod +x "$TERMUX_PREFIX/bin/novnc-headless"
+		download_file "$TERMUX_PREFIX/bin/novnc-audio" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio"
+		download_file "$TERMUX_PREFIX/bin/novnc-audio-server.py" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-audio-server.py" && chmod +x "$TERMUX_PREFIX/bin/novnc-audio-server.py"
 		check_and_create_directory "$TERMUX_HOME/.config/git/conf.d"
 		download_file "$TERMUX_HOME/.config/git/conf.d" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/git-config.conf"
 		cat >>"${TERMUX_HOME}/.config/git/config" <<-EOF

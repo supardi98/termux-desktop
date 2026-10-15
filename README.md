@@ -215,6 +215,19 @@ novnc-start --passwd pass # Use temporary password for this session
 ```
 *(Alias: `novncpasswd`)*
 
+#### 4. Web Audio Streaming (Browser Sound)
+Stream desktop sound (YouTube, media, games) directly to your laptop/PC browser while keeping the phone speaker silent:
+
+```bash
+novnc-audio start             # Start audio stream on port 6081 (phone muted by default)
+novnc-audio start --both      # Sound plays on BOTH phone speaker and browser
+novnc-audio stop              # Stop audio stream and restore phone speaker
+novnc-audio status            # Check audio streaming status
+```
+*(Alias: `novncaudio`)*
+
+Open **`http://<phone-ip>:6081`** in a new browser tab and click **`▶ Mulai Suara`** to listen in sync with noVNC.
+
 ### GUI Commands
 
 ```bash

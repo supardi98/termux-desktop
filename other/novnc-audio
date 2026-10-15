@@ -1,0 +1,165 @@
+#!/bin/bash
+# ==============================================================================
+# Script: novnc-audio
+# Description: Controls Web Audio Streaming from PulseAudio to Web Browser
+# Accessible at: http://<IP-HP>:6081
+# ==============================================================================
+
+AUDIO_PORT=6081
+PULSE_TCP_PORT=4714
+
+show_help() {
+    cat <<EOF
+Pengelola Audio Web noVNC (Audio Streaming ke Browser Laptop)
+
+Penggunaan:
+  novnc-audio start [opsi]  - Nyalakan audio streaming ke browser
+  novnc-audio stop          - Hentikan audio streaming
+  novnc-audio restart       - Muat ulang audio streaming
+  novnc-audio status        - Cek status audio streaming
+  novnc-audio -h, --help    - Tampilkan bantuan ini
+
+Opsi 'start':
+  --both        Suara keluar di speaker HP dan browser laptop secara bersamaan
+  --mute-phone  Suara HANYA keluar di browser laptop (speaker HP hening, default)
+EOF
+    exit 0
+}
+
+# Find Python interpreter
+PYTHON_BIN="python3"
+if [ -x "/data/data/com.termux/files/usr/bin/python3" ]; then
+    PYTHON_BIN="/data/data/com.termux/files/usr/bin/python3"
+fi
+
+# Find server script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVER_SCRIPT="$SCRIPT_DIR/novnc-audio-server.py"
+if [ ! -f "$SERVER_SCRIPT" ]; then
+    if [ -f "/data/data/com.termux/files/usr/bin/novnc-audio-server.py" ]; then
+        SERVER_SCRIPT="/data/data/com.termux/files/usr/bin/novnc-audio-server.py"
+    elif [ -f "/usr/local/bin/novnc-audio-server.py" ]; then
+        SERVER_SCRIPT="/usr/local/bin/novnc-audio-server.py"
+    fi
+fi
+
+start_audio() {
+    local MUTE_PHONE=true
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --both) MUTE_PHONE=false ;;
+            --mute-phone) MUTE_PHONE=true ;;
+        esac
+        shift
+    done
+
+    # 1. Check PulseAudio
+    if ! pactl info >/dev/null 2>&1; then
+        echo "[!] PulseAudio belum aktif. Menyalakan PulseAudio..."
+        pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1
+        sleep 1
+    fi
+
+    # 2. Setup Sinks
+    if [ "$MUTE_PHONE" = true ]; then
+        # Load null-sink for silent phone
+        if ! pactl list sinks short 2>/dev/null | grep -q "headless_sink"; then
+            pactl load-module module-null-sink sink_name=headless_sink sink_properties=device.description="HeadlessWebAudio" >/dev/null 2>&1
+        fi
+        pactl set-default-sink headless_sink >/dev/null 2>&1
+        AUDIO_SOURCE="headless_sink.monitor"
+        SINK_STATUS="[🔇] Speaker HP : Senyap / Mute (Suara dialirkan hanya ke browser)"
+    else
+        # Sound on both: keep default sink and record from default monitor
+        DEFAULT_SINK=$(pactl info 2>/dev/null | grep "Default Sink" | cut -d: -f2 | tr -d ' ')
+        [ -z "$DEFAULT_SINK" ] && DEFAULT_SINK="OpenSL_ES_sink"
+        AUDIO_SOURCE="${DEFAULT_SINK}.monitor"
+        SINK_STATUS="[🔊] Speaker HP : Aktif (Suara terdengar di HP & Browser)"
+    fi
+
+    # 3. Setup PulseAudio TCP streaming module on port 4714
+    if ! pactl list modules short 2>/dev/null | grep -q "module-simple-protocol-tcp.*${PULSE_TCP_PORT}"; then
+        pactl load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source="$AUDIO_SOURCE" record=true port="$PULSE_TCP_PORT" listen=127.0.0.1 >/dev/null 2>&1
+    fi
+
+    # 4. Stop existing server
+    pkill -9 -f "novnc-audio-server.py|audio_server.py" >/dev/null 2>&1 || true
+    sleep 0.5
+
+    # 5. Start audio web server with setsid
+    echo "[i] Menyalakan server audio web pada port $AUDIO_PORT..."
+    setsid "$PYTHON_BIN" "$SERVER_SCRIPT" </dev/null >/dev/null 2>&1 &
+    sleep 1
+
+    # Detect IP
+    LOCAL_IP=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -vE '127.0.0.1|^100\.' | head -n 1)
+    [ -z "$LOCAL_IP" ] && LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -z "$LOCAL_IP" ] && LOCAL_IP="<IP-HP-ANDA>"
+
+    TAILSCALE_IP=$(ip -4 addr show tailscale0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
+    if [ -z "$TAILSCALE_IP" ]; then
+        TAILSCALE_IP=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)100\.\d+(\.\d+){2}' | head -n 1)
+    fi
+
+    echo ""
+    echo "============================================================"
+    echo " [✓] Audio Web Streaming Berhasil Aktif!"
+    echo " $SINK_STATUS"
+    echo ""
+    echo " Buka tab baru di browser Laptop / PC:"
+    echo "   👉 Wi-Fi Lokal : http://${LOCAL_IP}:${AUDIO_PORT}/"
+    if [ -n "$TAILSCALE_IP" ]; then
+        echo "   👉 Tailscale   : http://${TAILSCALE_IP}:${AUDIO_PORT}/ (Jarak jauh)"
+    fi
+    echo "   👉 Lokal HP    : http://localhost:${AUDIO_PORT}/"
+    echo ""
+    echo " Klik tombol '▶ Mulai Suara' di browser untuk mendengarkan."
+    echo "============================================================"
+}
+
+stop_audio() {
+    pkill -9 -f "novnc-audio-server.py" >/dev/null 2>&1 || true
+    
+    # Restore phone speaker sink
+    if pactl info >/dev/null 2>&1; then
+        pactl set-default-sink OpenSL_ES_sink >/dev/null 2>&1 || true
+    fi
+    echo "[✓] Audio Web Streaming telah dihentikan (Speaker HP kembali normal)."
+}
+
+status_audio() {
+    if netstat -tlpn 2>/dev/null | grep -q ":${AUDIO_PORT} "; then
+        echo "[✓] Audio Web Streaming: AKTIF pada port $AUDIO_PORT"
+        local DEF_SINK=$(pactl info 2>/dev/null | grep "Default Sink" | cut -d: -f2 | tr -d ' ')
+        echo "    Output Sink Aktif: $DEF_SINK"
+    elif pgrep -f "novnc-audio-server.py" >/dev/null 2>&1; then
+        echo "[✓] Audio Web Streaming: AKTIF pada port $AUDIO_PORT"
+    else
+        echo "[x] Audio Web Streaming: TIDAK AKTIF"
+    fi
+}
+
+case "$1" in
+    start)
+        shift
+        start_audio "$@"
+        ;;
+    stop)
+        stop_audio
+        ;;
+    restart)
+        stop_audio
+        sleep 1
+        shift
+        start_audio "$@"
+        ;;
+    status)
+        status_audio
+        ;;
+    -h|--help)
+        show_help
+        ;;
+    *)
+        start_audio "$@"
+        ;;
+esac

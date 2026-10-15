@@ -1,8 +1,17 @@
 #!/bin/bash
 # ==============================================================================
 # Script: novnc-stop
-# Description: Stops x0vncserver, x11vnc, and noVNC (websockify)
+# Description: Stops x0vncserver, x11vnc, noVNC, and audio streamer
 # ==============================================================================
 
 pkill -9 -f "x0vncserver|x11vnc|websockify.*6080" >/dev/null 2>&1 || true
-echo "[✓] Server noVNC dan VNC Server telah berhasil dihentikan."
+
+# Stop audio streamer and restore speaker
+if command -v novnc-audio >/dev/null 2>&1; then
+    novnc-audio stop >/dev/null 2>&1 || true
+else
+    pkill -9 -f "novnc-audio-server.py" >/dev/null 2>&1 || true
+    pactl set-default-sink OpenSL_ES_sink >/dev/null 2>&1 || true
+fi
+
+echo "[✓] Server noVNC, VNC Server, dan Audio Streaming telah dihentikan."
