@@ -1,16 +1,9 @@
 #!/bin/bash
 # ==============================================================================
 # Script: novnc-start
-# Description: Starts x11vnc and noVNC (websockify) to share Termux Desktop (DISPLAY :0)
+# Description: Starts native VNC server and noVNC (websockify) to share Termux Desktop (:0)
 # Accessible via any web browser at: http://<IP-HP>:6080
 # ==============================================================================
-
-# If executed from Termux host (outside PRoot), forward into Debian container
-if [ ! -f /etc/debian_version ]; then
-    if command -v pdrun >/dev/null 2>&1; then
-        exec pdrun novnc-start "$@"
-    fi
-fi
 
 export DISPLAY="${DISPLAY:-:0}"
 PORT="${PORT:-6080}"
@@ -47,7 +40,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-# Check if X server is actually running before starting VNC
+# Check if X server is actually running
 if ! xset q -display "$DISPLAY" >/dev/null 2>&1; then
     echo ""
     echo "============================================================"
@@ -66,33 +59,57 @@ if ! xset q -display "$DISPLAY" >/dev/null 2>&1; then
 fi
 
 # Stop any existing instances first
-pkill -9 -f "x11vnc|websockify.*${PORT}" >/dev/null 2>&1 || true
+pkill -9 -f "x0vncserver|x11vnc|websockify.*${PORT}" >/dev/null 2>&1 || true
+sleep 0.5
 
-# Determine password settings
-PW_ARGS="-nopw"
+# Detect web root directory
+NOVNC_WEB="/usr/share/novnc"
+[ -d "/data/data/com.termux/files/usr/share/novnc" ] && NOVNC_WEB="/data/data/com.termux/files/usr/share/novnc"
+
+# Password detection
+PASS_FILE=""
+if [ -f "$HOME/.vnc/passwd" ]; then
+    PASS_FILE="$HOME/.vnc/passwd"
+elif [ -f "/data/data/com.termux/files/home/.vnc/passwd" ]; then
+    PASS_FILE="/data/data/com.termux/files/home/.vnc/passwd"
+elif [ -f "/home/supardi/.vnc/passwd" ]; then
+    PASS_FILE="/home/supardi/.vnc/passwd"
+fi
+
 PW_STATUS="[🔓] Proteksi Password : Nonaktif (Gunakan 'novnc-passwd' untuk proteksi)"
 
-if [ -n "$VNC_PASS" ]; then
-    PW_ARGS="-passwd $VNC_PASS"
-    PW_STATUS="[🔒] Proteksi Password : Aktif (Sesi sementara)"
-elif [ "$NO_PW" = false ] && [ -f "$HOME/.vnc/passwd" ]; then
-    PW_ARGS="-rfbauth $HOME/.vnc/passwd"
-    PW_STATUS="[🔒] Proteksi Password : Aktif (~/.vnc/passwd)"
+# Start VNC server (x0vncserver preferred on Termux, x11vnc in Debian)
+echo "[i] Menjalankan VNC Server pada DISPLAY $DISPLAY..."
+if command -v x0vncserver >/dev/null 2>&1; then
+    # TigerVNC x0vncserver
+    SEC_OPTS="-SecurityTypes None"
+    if [ "$NO_PW" = false ] && [ -n "$PASS_FILE" ]; then
+        SEC_OPTS="-SecurityTypes VncAuth -PasswordFile $PASS_FILE"
+        PW_STATUS="[🔒] Proteksi Password : Aktif ($PASS_FILE)"
+    fi
+    setsid x0vncserver -display "$DISPLAY" -rfbport "$RFBPORT" $SEC_OPTS </dev/null >/dev/null 2>&1 &
+elif command -v x11vnc >/dev/null 2>&1; then
+    # x11vnc
+    PW_ARGS="-nopw"
+    if [ -n "$VNC_PASS" ]; then
+        PW_ARGS="-passwd $VNC_PASS"
+        PW_STATUS="[🔒] Proteksi Password : Aktif (Sesi sementara)"
+    elif [ "$NO_PW" = false ] && [ -n "$PASS_FILE" ]; then
+        PW_ARGS="-rfbauth $PASS_FILE"
+        PW_STATUS="[🔒] Proteksi Password : Aktif ($PASS_FILE)"
+    fi
+    setsid x11vnc -display "$DISPLAY" -forever -shared $PW_ARGS -listen 127.0.0.1 -rfbport "$RFBPORT" -noxdamage </dev/null >/dev/null 2>&1 &
 fi
 
-# Start x11vnc attached to DISPLAY on loopback only for security
-echo "[i] Menjalankan x11vnc pada DISPLAY $DISPLAY..."
-x11vnc -display "$DISPLAY" -forever -shared $PW_ARGS -listen 127.0.0.1 -rfbport "$RFBPORT" -noxdamage -bg >/dev/null 2>&1
 sleep 1
 
-if ! pgrep -f "x11vnc.*${RFBPORT}" >/dev/null 2>&1; then
-    echo "[☓] Gagal menjalankan x11vnc. Periksa koneksi DISPLAY $DISPLAY."
-    exit 1
-fi
-
-# Start websockify / noVNC web server
+# Start websockify / noVNC web server using setsid (avoids bionic setgid restrictions)
 echo "[i] Menjalankan noVNC Web Server pada port $PORT..."
-websockify -D --web /usr/share/novnc "$PORT" "127.0.0.1:$RFBPORT" >/dev/null 2>&1
+WEBSOCKIFY_CMD="websockify"
+command -v /data/data/com.termux/files/usr/bin/websockify >/dev/null 2>&1 && WEBSOCKIFY_CMD="/data/data/com.termux/files/usr/bin/websockify"
+
+setsid "$WEBSOCKIFY_CMD" --web "$NOVNC_WEB" "$PORT" "127.0.0.1:$RFBPORT" </dev/null >/dev/null 2>&1 &
+sleep 1
 
 # Detect local IP and Tailscale IP
 LOCAL_IP=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -vE '127.0.0.1|^100\.' | head -n 1)
