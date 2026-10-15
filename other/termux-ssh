@@ -1,65 +1,128 @@
 #!/data/data/com.termux/files/usr/bin/bash
+# ==============================================================================
+# Script: termux-ssh
+# Description: Starts/Stops SSH server (sshd) on port 8022 with Tailscale & Wi-Fi info
+# Usage: termux-ssh [start|stop|status|restart]
+# ==============================================================================
 
-R="$(printf '\033[1;31m')"
-G="$(printf '\033[1;32m')"
-B="$(printf '\033[1;34m')"
-RESET="$(printf '\033[0m')"
 readonly TERMUX_HOME=${HOME:-/data/data/com.termux/files/home}
 MARKER_FILE="$TERMUX_HOME/.first_pass_change_marker"
+SSH_PORT=8022
 
-function start_ssh() {
-	sshd
-	sleep 2
-	ifconfig_output=$(ifconfig 2>/dev/null)
-	ip_address=$(echo "$ifconfig_output" | awk '/ccmni1/,/inet/ { if ($1 == "inet") print $2 }')
-	if [[ -z "$ip_address" ]]; then
-		ip_address=$(echo "$ifconfig_output" | awk '/ap0/,/inet/ { if ($1 == "inet") print $2 }')
-	fi
-	port=8022
-	if [[ -n "$ip_address" ]]; then
-		echo "${G}Your Address Is: ${B}$ip_address $port${RESET}"
-	else
-		echo "${R}No IP address found.${RESET}"
-	fi
+get_user() {
+    local u
+    u=$(whoami 2>/dev/null)
+    [ -z "$u" ] && [ -x "/data/data/com.termux/files/usr/bin/whoami" ] && u=$(/data/data/com.termux/files/usr/bin/whoami)
+    [ -z "$u" ] && u="u0_a331"
+    echo "$u"
 }
 
-function stop_ssh() {
-	if pgrep sshd >/dev/null; then
-		echo "${G}sshd is running. Stopping it...${RESET}"
-		pkill -f sshd
-		if ! pgrep sshd >/dev/null; then
-			echo "${G}sshd has been stopped.${RESET}"
-		else
-			echo "${R}Failed to stop sshd.${RESET}"
-		fi
-	else
-		echo "${G}sshd is not running.${RESET}"
-	fi
+get_ips() {
+    LOCAL_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
+    [ -z "$LOCAL_IP" ] && LOCAL_IP=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -vE '127.0.0.1|^100\.' | head -n 1)
+    [ -z "$LOCAL_IP" ] && LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -z "$LOCAL_IP" ] && LOCAL_IP="<IP-HP-ANDA>"
+
+    TAILSCALE_IP=$(ip -4 addr show tailscale0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
+    if [ -z "$TAILSCALE_IP" ]; then
+        TAILSCALE_IP=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)100\.\d+(\.\d+){2}' | head -n 1)
+    fi
 }
 
-case $1 in
-start)
-	if [[ ! -f "$MARKER_FILE" ]]; then
-		echo "${G}Enter your ssh password${RESET}"
-		passwd
-		touch "$MARKER_FILE"
-	fi
-	start_ssh
-	;;
-stop)
-	stop_ssh
-	;;
---help | -h)
-	echo -e "
-termux-ssh start    to start ssh\n
-termux-ssh stop     to stop ssh\n
-termux-ssh          to set passwd and start ssh\n
-"
-	;;
-*)
-	echo "${G}Enter your ssh password${RESET}"
-	passwd
-	touch "$MARKER_FILE"
-	start_ssh
-	;;
+start_ssh() {
+    if ! pgrep -x sshd >/dev/null 2>&1; then
+        sshd
+        sleep 0.5
+    fi
+
+    if pgrep -x sshd >/dev/null 2>&1; then
+        get_ips
+        local USER_NAME
+        USER_NAME=$(get_user)
+
+        echo ""
+        echo "============================================================"
+        echo " [✓] Server SSH (sshd) Aktif pada Port $SSH_PORT"
+        echo "============================================================"
+        echo " Pengguna (Username) : $USER_NAME"
+        echo ""
+        echo " Cara akses dari Laptop / PC / Terminal lain:"
+        echo "   👉 Wi-Fi Lokal : ssh -p $SSH_PORT ${USER_NAME}@${LOCAL_IP}"
+        if [ -n "$TAILSCALE_IP" ]; then
+            echo "   👉 Tailscale   : ssh -p $SSH_PORT ${USER_NAME}@${TAILSCALE_IP} (Jarak Jauh)"
+        fi
+        echo "   👉 Lokal HP    : ssh -p $SSH_PORT ${USER_NAME}@localhost"
+        echo ""
+        echo " Tips Akses:"
+        echo "   - Password : Ketik 'passwd' jika belum membuat password"
+        echo "   - SSH Key  : Salin id_ed25519.pub ke ~/.ssh/authorized_keys"
+        echo "   - Ke Debian: Setelah login SSH, ketik 'pdrun' untuk masuk Debian"
+        echo "   - SFTP     : Host ${LOCAL_IP}, Port $SSH_PORT (FileZilla/WinSCP/VS Code)"
+        echo "============================================================"
+    else
+        echo "[☓] Gagal menjalankan sshd."
+        return 1
+    fi
+}
+
+stop_ssh() {
+    if pgrep -x sshd >/dev/null 2>&1; then
+        pkill -x sshd
+        sleep 0.5
+        echo "[✓] Server SSH (sshd) telah dihentikan."
+    else
+        echo "[i] Server SSH (sshd) tidak sedang berjalan."
+    fi
+}
+
+status_ssh() {
+    if pgrep -x sshd >/dev/null 2>&1; then
+        get_ips
+        local USER_NAME
+        USER_NAME=$(get_user)
+        echo "[✓] Server SSH (sshd): AKTIF pada port $SSH_PORT"
+        echo "    Username : $USER_NAME"
+        echo "    Wi-Fi    : ssh -p $SSH_PORT ${USER_NAME}@${LOCAL_IP}"
+        if [ -n "$TAILSCALE_IP" ]; then
+            echo "    Tailscale: ssh -p $SSH_PORT ${USER_NAME}@${TAILSCALE_IP}"
+        fi
+    else
+        echo "[x] Server SSH (sshd): TIDAK AKTIF (Jalankan 'termux-ssh start' atau 'startssh')"
+    fi
+}
+
+case "$1" in
+    start)
+        start_ssh
+        ;;
+    stop)
+        stop_ssh
+        ;;
+    restart)
+        stop_ssh
+        sleep 1
+        start_ssh
+        ;;
+    status)
+        status_ssh
+        ;;
+    passwd)
+        passwd
+        ;;
+    --help|-h)
+        echo "Penggunaan: termux-ssh [start|stop|restart|status|passwd]"
+        echo "  start    - Nyalakan server SSH (port 8022)"
+        echo "  stop     - Matikan server SSH"
+        echo "  status   - Cek status dan perintah koneksi SSH"
+        echo "  passwd   - Set / ubah password SSH Termux"
+        echo "Aliases: startssh, stopssh"
+        ;;
+    *)
+        if [[ ! -f "$MARKER_FILE" ]]; then
+            echo "[i] Konfigurasi awal: Silakan atur password login SSH Termux:"
+            passwd
+            touch "$MARKER_FILE"
+        fi
+        start_ssh
+        ;;
 esac
