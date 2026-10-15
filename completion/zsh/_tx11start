@@ -12,6 +12,8 @@ _tx11start() {
         '--nodbus[Start without dbus]'
         '--legacy[Start with -legacy-drawing]'
         '--debug[Show debug log]'
+        '--novnc[Start noVNC web server and display connection URL]'
+        '--headless[Start desktop in headless mode without opening Termux:X11 app]'
     )
 
     # Prevent suggestions if --help is already typed

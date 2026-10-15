@@ -123,13 +123,13 @@ bash <(curl -Lf kutt.to/setup-termux-desktop)
 tx11start [options]
 ```
 
-Options:
-
+- `--novnc`: Start desktop and automatically launch noVNC web server.
+- `--headless`: Start in background without opening the Android Termux:X11 app window.
 - `--xstartup`: Start the user-specified xstartup.
 - `--nogpu`: Disable GPU acceleration.
 - `--legacy`: Enable legacy drawing.
 - `--nodbus`: Start without using dbus-launch.
-- Combine options for specific configurations (e.g., `tx11start --nogpu --legacy`).
+- Combine options for specific configurations (e.g., `tx11start --novnc --headless`).
 - `--help`: Show help.
 
 <details>
@@ -184,13 +184,36 @@ Options:
 
 ### Web Browser Access (noVNC)
 
-Access your active Termux:X11 desktop directly from any web browser on your PC, Laptop, or Tablet on the same Wi-Fi network without installing any client:
+Access your Linux desktop directly from any web browser on your PC, Laptop, or Tablet (via local Wi-Fi or Tailscale) without installing any VNC client:
+
+#### 1. One-Command Start: `tx11start --novnc`
+Start the Termux:X11 desktop and noVNC web server together in a single command:
 
 ```bash
-novnc-start    # Start noVNC (Open http://<phone-ip>:6080)
-novnc-stop     # Stop noVNC server
+tx11start --novnc             # Normal mode + web browser access
+tx11start --novnc --headless  # Pure background mode (Termux:X11 app window stays closed)
 ```
-*(Aliases: `novncstart` and `novncstop`)*
+
+#### 2. Manual Controls
+If the desktop is already running:
+
+```bash
+novnc-start       # Start noVNC (Open http://<phone-ip>:6080)
+novnc-stop        # Stop noVNC server
+novnc-headless    # Shortcut for tx11start --novnc --headless
+```
+*(Aliases: `novncstart`, `novncstop`, and `novncheadless`)*
+
+#### 3. Password Protection
+Protect your web desktop from unauthorized access on shared networks (Wi-Fi / Tailscale):
+
+```bash
+novnc-passwd              # Set/change password interactively
+novnc-passwd mysecret     # Set password directly
+novnc-passwd -d           # Remove password (revert to open access)
+novnc-start --passwd pass # Use temporary password for this session
+```
+*(Alias: `novncpasswd`)*
 
 ### GUI Commands
 

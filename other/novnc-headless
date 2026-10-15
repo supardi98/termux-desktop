@@ -1,0 +1,24 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ==============================================================================
+# Script: novnc-headless
+# Description: Starts Termux Desktop in pure HEADLESS mode (no Termux:X11 app window)
+# Accessible via any web browser at: http://<IP-HP>:6080
+# ==============================================================================
+
+# Ensure not running under PRoot
+TRACER_PID=$(grep TracerPid "/proc/$$/status" 2>/dev/null | cut -d $'\t' -f 2)
+if [ "$TRACER_PID" != 0 ] && [ -n "$TRACER_PID" ]; then
+    TRACER_NAME=$(grep Name "/proc/${TRACER_PID}/status" 2>/dev/null | cut -d $'\t' -f 2)
+    if [ "$TRACER_NAME" = "proot" ]; then
+        echo "[!] Perintah novnc-headless harus dijalankan dari terminal Termux host (bukan di dalam PRoot Debian)."
+        echo "    Silakan ketik 'exit' untuk kembali ke Termux, lalu jalankan: novnc-headless"
+        exit 1
+    fi
+fi
+
+if command -v tx11start >/dev/null 2>&1; then
+    exec tx11start --novnc --headless "$@"
+else
+    echo "[☓] Perintah tx11start tidak ditemukan di sistem."
+    exit 1
+fi

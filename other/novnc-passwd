@@ -1,0 +1,74 @@
+#!/bin/bash
+# ==============================================================================
+# Script: novnc-passwd
+# Description: Set or delete password for noVNC web access
+# ==============================================================================
+
+# If executed from Termux host (outside PRoot), forward into Debian container
+if [ ! -f /etc/debian_version ]; then
+    if command -v pdrun >/dev/null 2>&1; then
+        exec pdrun novnc-passwd "$@"
+    fi
+fi
+
+PASS_DIR="$HOME/.vnc"
+PASS_FILE="$PASS_DIR/passwd"
+
+show_help() {
+    cat <<EOF
+Pengelola Password noVNC (Keamanan Web Desktop)
+
+Penggunaan:
+  novnc-passwd              - Set/ubah password noVNC secara interaktif
+  novnc-passwd <password>   - Set password secara langsung
+  novnc-passwd -d, --delete - Hapus password (kembali ke mode tanpa password)
+  novnc-passwd -h, --help   - Tampilkan bantuan ini
+EOF
+    exit 0
+}
+
+case "$1" in
+    -h|--help)
+        show_help
+        ;;
+    -d|--delete|--remove)
+        if [ -f "$PASS_FILE" ]; then
+            rm -f "$PASS_FILE"
+            echo "[✓] Password noVNC berhasil dihapus. Akses browser kini tanpa password."
+        else
+            echo "[i] Tidak ada password noVNC yang tersimpan."
+        fi
+        exit 0
+        ;;
+    "")
+        echo "============================================================"
+        echo " Konfigurasi Password noVNC (Keamanan Web Desktop)"
+        echo "============================================================"
+        echo "Password ini akan diminta saat membuka http://<IP>:6080 di browser."
+        echo ""
+        read -s -p "Masukkan password baru: " P1
+        echo ""
+        read -s -p "Konfirmasi password: " P2
+        echo ""
+        if [ "$P1" != "$P2" ]; then
+            echo "[☓] Password tidak cocok!"
+            exit 1
+        fi
+        if [ -z "$P1" ]; then
+            echo "[☓] Password tidak boleh kosong!"
+            exit 1
+        fi
+        NEW_PASS="$P1"
+        ;;
+    *)
+        NEW_PASS="$1"
+        ;;
+esac
+
+mkdir -p "$PASS_DIR"
+x11vnc -storepasswd "$NEW_PASS" "$PASS_FILE" >/dev/null 2>&1
+chmod 600 "$PASS_FILE"
+
+echo "[✓] Password noVNC berhasil disimpan di $PASS_FILE"
+echo "    Kini akses ke http://<IP>:6080 terlindungi password."
+echo "    Jalankan 'novnc-start' untuk menerapkan perubahan."

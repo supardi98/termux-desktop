@@ -3804,6 +3804,8 @@ function setup_tx11start_cmd() {
 			    use_nodbus=false
 			    use_legacy=false
 			    use_debug=false
+			    use_novnc=false
+			    use_headless=false
 			    de_startup="$de_startup"
 
 			    # Function to show help
@@ -3814,6 +3816,8 @@ function setup_tx11start_cmd() {
 					tx11start --nodbus                      - start without dbus
 					tx11start --legacy                      - start with -legacy-drawing
 					tx11start --debug                       - show debug log
+					tx11start --novnc                       - start Termux:X11 and launch noVNC web server
+					tx11start --headless                    - start in headless mode (no Termux:X11 app window)
 					tx11start --xstartup "xstartup-name"    - launch another desktop environment
 					HELP_EOF
 					exit 0
@@ -3835,6 +3839,12 @@ function setup_tx11start_cmd() {
 			        ;;
 			      --nodbus | --no-dbus)
 			        use_nodbus=true
+			        ;;
+			      --novnc)
+			        use_novnc=true
+			        ;;
+			      --headless)
+			        use_headless=true
 			        ;;
 			      --legacy)
 			        use_legacy=true
@@ -3958,10 +3968,12 @@ function setup_tx11start_cmd() {
 			    sleep 1
 
 			    # Start X11 Main Activity
-			    if \$use_debug; then
-			      am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity
-			    else
-			      am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
+			    if ! \$use_headless; then
+			      if \$use_debug; then
+			        am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity
+			      else
+			        am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
+			      fi
 			    fi
 			    sleep 1
 
@@ -4013,6 +4025,8 @@ function setup_tx11start_cmd() {
 			    use_nodbus=false
 			    use_legacy=false
 			    use_debug=false
+			    use_novnc=false
+			    use_headless=false
 			    de_startup="$de_startup"
 
 			    # Function to show help
@@ -4022,6 +4036,8 @@ function setup_tx11start_cmd() {
 					tx11start --nodbus                      - start without dbus
 					tx11start --legacy                      - start with -legacy-drawing
 					tx11start --debug                       - show debug log
+					tx11start --novnc                       - start Termux:X11 and launch noVNC web server
+					tx11start --headless                    - start in headless mode (no Termux:X11 app window)
 					tx11start --xstartup "xstartup-name"    - launch another desktop environment
 					HELP_EOF
 					exit 0
@@ -4040,6 +4056,12 @@ function setup_tx11start_cmd() {
 			          ;;
 			      --nodbus | --no-dbus)
 			        use_nodbus=true
+			        ;;
+			      --novnc)
+			        use_novnc=true
+			        ;;
+			      --headless)
+			        use_headless=true
 			        ;;
 			      --legacy)
 			        use_legacy=true
@@ -4144,10 +4166,12 @@ function setup_tx11start_cmd() {
 			    sleep 1
 
 			    # Start X11 Main Activity
-			    if \$use_debug; then
-			      am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity
-			    else
-			      am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
+			    if ! \$use_headless; then
+			      if \$use_debug; then
+			        am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity
+			      else
+			        am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
+			      fi
 			    fi
 			    sleep 1
 
@@ -4184,6 +4208,14 @@ function setup_tx11start_cmd() {
 			fi
 		EOF
 	fi
+
+	cat <<-EOF >>"$TERMUX_PREFIX/bin/tx11start"
+		if \$use_novnc; then
+			if command -v novnc-start >/dev/null 2>&1; then
+				novnc-start
+			fi
+		fi
+	EOF
 	chmod +x "$TERMUX_PREFIX/bin/tx11start"
 }
 
@@ -4944,6 +4976,10 @@ function terminal_utility_setup() {
 		chmod +x "$TERMUX_PREFIX/bin/termux-color"
 		download_file "$TERMUX_PREFIX/bin/termux-nf" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/termux-nf"
 		chmod +x "$TERMUX_PREFIX/bin/termux-nf"
+		download_file "$TERMUX_PREFIX/bin/novnc-start" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-start" && chmod +x "$TERMUX_PREFIX/bin/novnc-start"
+		download_file "$TERMUX_PREFIX/bin/novnc-stop" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-stop" && chmod +x "$TERMUX_PREFIX/bin/novnc-stop"
+		download_file "$TERMUX_PREFIX/bin/novnc-passwd" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-passwd" && chmod +x "$TERMUX_PREFIX/bin/novnc-passwd"
+		download_file "$TERMUX_PREFIX/bin/novnc-headless" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/novnc-headless" && chmod +x "$TERMUX_PREFIX/bin/novnc-headless"
 		check_and_create_directory "$TERMUX_HOME/.config/git/conf.d"
 		download_file "$TERMUX_HOME/.config/git/conf.d" "$REPO_RAW_URL/refs/heads/$REPO_BRANCH_MAIN/other/git-config.conf"
 		cat >>"${TERMUX_HOME}/.config/git/config" <<-EOF
@@ -5110,7 +5146,7 @@ function setup_fonts() {
 
 	package_install_and_check "nerdfix fontconfig-utils"
 	if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
-		package_install_and_check "fonts-noto-color-emoji"
+		package_install_and_check "fonts-noto-color-emoji fonts-noto-cjk"
 	fi
 	check_and_create_directory "$TERMUX_HOME/.termux"
 	check_and_create_directory "$TERMUX_HOME/.fonts"
