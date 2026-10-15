@@ -34,6 +34,9 @@ get_ips() {
 ensure_sshd_config() {
     local conf_dir="/data/data/com.termux/files/usr/etc/ssh/sshd_config.d"
     local conf_file="$conf_dir/termux.conf"
+    local pts_fix="/data/data/com.termux/files/usr/lib/libssh_pts_fix.so"
+    local sshd_session="/data/data/com.termux/files/usr/libexec/sshd-session"
+
     if [ ! -d "$conf_dir" ]; then
         mkdir -p "$conf_dir" 2>/dev/null
     fi
@@ -45,12 +48,29 @@ KbdInteractiveAuthentication yes
 PerSourcePenalties no
 EOF
     fi
+
+    if [ ! -f "$pts_fix" ] && [ -x "/data/data/com.termux/files/usr/bin/clang" ]; then
+        local src="/home/supardi/termux-desktop/other/ssh_pts_fix.c"
+        if [ -f "$src" ]; then
+            /data/data/com.termux/files/usr/bin/clang -shared -fPIC -O2 "$src" -o "$pts_fix" 2>/dev/null
+        fi
+    fi
+
+    if [ -f "$pts_fix" ] && [ -f "$sshd_session" ] && command -v patchelf >/dev/null 2>&1; then
+        if ! patchelf --print-needed "$sshd_session" 2>/dev/null | grep -q "libssh_pts_fix.so"; then
+            patchelf --add-needed libssh_pts_fix.so "$sshd_session" 2>/dev/null
+        fi
+    fi
 }
 
 start_ssh() {
     ensure_sshd_config
     if ! pgrep -x sshd >/dev/null 2>&1; then
-        sshd
+        env -i PATH=/data/data/com.termux/files/usr/bin:/data/data/com.termux/files/usr/bin/applets \
+               HOME=/data/data/com.termux/files/home \
+               PREFIX=/data/data/com.termux/files/usr \
+               TMPDIR=/data/data/com.termux/files/usr/tmp \
+               /data/data/com.termux/files/usr/bin/sshd
         sleep 0.5
     fi
 
