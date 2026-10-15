@@ -31,7 +31,24 @@ get_ips() {
     fi
 }
 
+ensure_sshd_config() {
+    local conf_dir="/data/data/com.termux/files/usr/etc/ssh/sshd_config.d"
+    local conf_file="$conf_dir/termux.conf"
+    if [ ! -d "$conf_dir" ]; then
+        mkdir -p "$conf_dir" 2>/dev/null
+    fi
+    if [ ! -f "$conf_file" ]; then
+        cat << 'EOF' > "$conf_file" 2>/dev/null
+# Termux SSH optimization
+PasswordAuthentication yes
+KbdInteractiveAuthentication yes
+PerSourcePenalties no
+EOF
+    fi
+}
+
 start_ssh() {
+    ensure_sshd_config
     if ! pgrep -x sshd >/dev/null 2>&1; then
         sshd
         sleep 0.5
